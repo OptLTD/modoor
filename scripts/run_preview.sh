@@ -15,7 +15,7 @@ MODULES=()
 
 default_modules() {
   local m
-  for m in base wiki sale skill; do
+  for m in base doc wiki sale skill; do
     if [[ -d "${ROOT}/modules/${m}/webui" ]]; then
       echo "${m}"
     fi
