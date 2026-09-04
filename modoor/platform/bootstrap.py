@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
-
 from modoor.core.ctx import Ctx
 from modoor.core.db import session_scope
 from modoor.core.errors import AppError
 from modoor.core.security import hash_password
 from modoor.core.settings import Settings, get_settings
 from modoor.platform.module_state import sync_discovered_modules
-from modules.base.domain import SystemUser
 from modules.base import domain as base_domain
 from modules.sale import domain as sale_domain
 from modules.wiki import domain as wiki_domain
@@ -58,14 +55,14 @@ def bootstrap(settings: Settings | None = None) -> dict:
             created["admin_user"] = True
 
         admin_id = int(admin["id"])
-        row = session.scalar(
-            select(SystemUser).where(
-                SystemUser.tenant == tenant_id, SystemUser.username == admin_username
-            )
-        )
-        if row and not row.password:
-            row.password = hash_password(admin_password)
+        row = base_domain.load_user(session, admin_id, tenant=tenant_id)
+        if row and row.login is not None and not row.login.password:
+            row.login.password = hash_password(admin_password)
             created["admin_password_reset"] = True
+        if row and row.login is not None and row.login.current is None:
+            row.login.current = tenant_id
+        if row and row.login is not None and not (row.login.realname or "").strip():
+            row.login.realname = "Administrator"
         if row and row.team_id != team_id:
             row.team_id = team_id
 

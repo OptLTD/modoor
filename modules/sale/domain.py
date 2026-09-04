@@ -5,23 +5,24 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Integer, DateTime, ForeignKey, Numeric, String, Text, func, select
+from sqlalchemy import Integer, DateTime, ForeignKey, Numeric, SmallInteger, String, Text, func, select
 from sqlalchemy.orm import Mapped, Session, mapped_column, relationship
 
 from modoor.core.ctx import Ctx
 from modoor.core.db import Base
 from modoor.core.errors import AppError
+from modoor.core.state import SALE_CONFIRMED, SALE_DRAFT, sale_label
 
 
 class SaleOrder(Base):
-    __tablename__ = "sale_orders"
+    __tablename__ = "sale_order"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     tenant: Mapped[int] = mapped_column(Integer, index=True)
     team_id: Mapped[int] = mapped_column(Integer, index=True)
     created_by: Mapped[int] = mapped_column(Integer)
     partner_name: Mapped[str] = mapped_column(String(256))
-    state: Mapped[str] = mapped_column(String(32), default="draft")  # draft | confirmed
+    state: Mapped[int] = mapped_column(SmallInteger, default=SALE_DRAFT)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -36,10 +37,10 @@ class SaleOrder(Base):
 
 
 class SaleOrderLine(Base):
-    __tablename__ = "sale_order_lines"
+    __tablename__ = "sale_order_line"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    order_id: Mapped[str] = mapped_column(ForeignKey("sale_orders.id"), index=True)
+    order_id: Mapped[str] = mapped_column(ForeignKey("sale_order.id"), index=True)
     product_name: Mapped[str] = mapped_column(String(256))
     qty: Mapped[Decimal] = mapped_column(Numeric(18, 4))
     unit_price: Mapped[Decimal] = mapped_column(Numeric(18, 4))
@@ -65,7 +66,7 @@ def _order_to_dict(order: SaleOrder) -> dict[str, Any]:
         "team_id": order.team_id,
         "created_by": order.created_by,
         "partner_name": order.partner_name,
-        "state": order.state,
+        "state": sale_label(order.state),
         "note": order.note,
         "created_at": order.created_at.isoformat() if order.created_at else None,
         "confirmed_at": order.confirmed_at.isoformat() if order.confirmed_at else None,
@@ -102,7 +103,7 @@ def create_order(
         team_id=ctx.team_id,
         created_by=ctx.user_id,
         partner_name=partner_name.strip(),
-        state="draft",
+        state=SALE_DRAFT,
         note=note,
     )
     for raw in lines:
@@ -135,11 +136,11 @@ def get_order(session: Session, ctx: Ctx, order_id: str) -> dict[str, Any]:
 
 def confirm_order(session: Session, ctx: Ctx, order_id: str) -> dict[str, Any]:
     order = _get_order(session, ctx, order_id)
-    if order.state == "confirmed":
+    if int(order.state or 0) == SALE_CONFIRMED:
         raise AppError("conflict", "Order already confirmed", details={"order_id": order_id})
-    if order.state != "draft":
-        raise AppError("conflict", f"Cannot confirm order in state={order.state}")
-    order.state = "confirmed"
+    if int(order.state or 0) != SALE_DRAFT:
+        raise AppError("conflict", f"Cannot confirm order in state={sale_label(order.state)}")
+    order.state = SALE_CONFIRMED
     order.confirmed_at = datetime.now(timezone.utc)
     session.flush()
     return _order_to_dict(order)

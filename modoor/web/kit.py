@@ -19,6 +19,7 @@ from modoor.web.nav import (
     module_menus,
     switcher_items,
 )
+from modules.base import domain as base_domain
 from modules.base.domain import SystemUser
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
@@ -54,9 +55,12 @@ class ShellKit:
             request.session.pop("user_id", None)
             return None
         with session_scope() as session:
-            user = session.get(SystemUser, user_id)
-            if user is None or not user.active or user.tenant != self.tenant():
+            user = base_domain.load_user(session, user_id, tenant=self.tenant())
+            if user is None or not user.active:
                 return None
+            _ = (user.username, user.realname, user.current)
+            if user.login is not None:
+                session.expunge(user.login)
             session.expunge(user)
             return user
 

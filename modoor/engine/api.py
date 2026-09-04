@@ -6,14 +6,13 @@ from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Request
 from pydantic import BaseModel
-from sqlalchemy import select
 
 from modoor.core.ctx import Ctx
 from modoor.core.db import session_scope
 from modoor.core.errors import AppError
-from modoor.core.security import verify_password
 from modoor.core.settings import get_settings
 from modoor.engine.service import get_engine
+from modules.base import domain as base_domain
 from modules.base.domain import SystemUser
 
 router = APIRouter()
@@ -36,9 +35,12 @@ def _user_from_session(request: Request) -> SystemUser | None:
         request.session.pop("user_id", None)
         return None
     with session_scope() as session:
-        user = session.get(SystemUser, user_id)
-        if user is None or not user.active or user.tenant != _tenant_id():
+        user = base_domain.load_user(session, user_id, tenant=_tenant_id())
+        if user is None or not user.active:
             return None
+        _ = (user.username, user.realname, user.current)
+        if user.login is not None:
+            session.expunge(user.login)
         session.expunge(user)
         return user
 
@@ -70,25 +72,28 @@ class LoginBody(BaseModel):
 
 @router.post("/api/auth/login")
 def api_login(request: Request, body: LoginBody) -> dict[str, Any]:
-    with session_scope() as session:
-        user = session.scalar(
-            select(SystemUser).where(
-                SystemUser.tenant == _tenant_id(),
-                SystemUser.username == body.username.strip().lower(),
+    try:
+        with session_scope() as session:
+            user = base_domain.authenticate_user(
+                session,
+                tenant=_tenant_id(),
+                username=body.username,
+                password=body.password,
             )
-        )
-        if user is None or not user.active or not verify_password(body.password, user.password or ""):
-            raise HTTPException(status_code=401, detail="invalid credentials")
-        request.session["user_id"] = user.id
-        return {
-            "ok": True,
-            "user": {
-                "id": user.id,
-                "username": user.username,
-                "realname": user.realname,
-                "tenant": user.tenant,
-            },
-        }
+            request.session["user_id"] = user.id
+            return {
+                "ok": True,
+                "user": {
+                    "id": user.id,
+                    "uukey": user.uukey,
+                    "username": user.username,
+                    "realname": user.realname,
+                    "tenant": user.tenant,
+                    "current": user.current,
+                },
+            }
+    except AppError as exc:
+        raise HTTPException(status_code=401, detail=exc.message) from exc
 
 
 @router.get("/api/auth/me")
@@ -97,9 +102,11 @@ def api_me(request: Request) -> dict[str, Any]:
     return {
         "user": {
             "id": user.id,
+            "uukey": user.uukey,
             "username": user.username,
             "realname": user.realname,
             "tenant": user.tenant,
+            "current": user.current,
         }
     }
 

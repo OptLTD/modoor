@@ -483,13 +483,13 @@ a {
 
 .sidebar-chrome-row {
   display: flex;
-  align-items: center;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
+  align-items: center;
 }
 
 .sidebar-chrome-row .shell-logo {
-  margin-right: 4px;
+  margin-right: 0px;
 }
 
 .sidebar-chrome-row .shell-logo img {

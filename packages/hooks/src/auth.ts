@@ -2,9 +2,11 @@ import { get, post } from './http'
 
 export type AuthUser = {
   id: number | string
+  uukey?: string
   username: string
   realname?: string
   tenant?: number | string
+  current?: number | string | null
 }
 
 export async function login(username: string, password: string) {

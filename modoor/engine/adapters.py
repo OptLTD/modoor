@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import asc, desc, func, or_, select
@@ -10,6 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from modoor.core.ctx import Ctx
 from modoor.core.errors import AppError
+from modoor.core.state import STATE_OFF, STATE_ON, sale_code, sale_label
 from modoor.engine.query import QueryTerm, parse_query
 
 
@@ -47,6 +49,10 @@ class ModelAdapter(ABC):
     def delete_keys(self, session: Session, ctx: Ctx, keys: list[str]) -> None:
         ...
 
+    def refers(self, session: Session, ctx: Ctx) -> dict[str, Any]:
+        """Optional lookup dicts for OPTIONAL/RELATION fields."""
+        return {}
+
 
 _ADAPTERS: dict[str, ModelAdapter] = {}
 
@@ -63,6 +69,21 @@ def get_adapter(model: str) -> ModelAdapter:
     if model not in _ADAPTERS:
         raise AppError("not_found", f"no adapter for model: {model}")
     return _ADAPTERS[model]
+
+
+def _parse_datetime(val: Any) -> datetime | None:
+    if val in (None, ""):
+        return None
+    s = str(val).strip().replace(" ", "T")
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(s)
+    except ValueError as exc:
+        raise AppError("validation_error", f"invalid datetime: {val}") from exc
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 def flatten_pick(row: dict[str, Any], key: str) -> Any:
@@ -96,6 +117,26 @@ def normalize_batch_row(row: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _truthy_on(val: Any) -> bool:
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)) and not isinstance(val, bool):
+        return int(val) == STATE_ON
+    return str(val).strip().lower() in ("1", "true", "yes", "y", "active", "on")
+
+
+def _as_on_off(val: Any) -> int | list[int]:
+    if isinstance(val, list):
+        return [STATE_ON if _truthy_on(v) else STATE_OFF for v in val]
+    return STATE_ON if _truthy_on(val) else STATE_OFF
+
+
+def _as_sale_state(val: Any) -> int | list[int]:
+    if isinstance(val, list):
+        return [sale_code(v) for v in val]
+    return sale_code(val)
+
+
 class SaleOrderAdapter(ModelAdapter):
     model = "sale.order"
 
@@ -113,7 +154,7 @@ class SaleOrderAdapter(ModelAdapter):
         raw = {
             "basic.uukey": order.id,
             "basic.utime": order.created_at.isoformat() if order.created_at else None,
-            "basic.status": order.state,
+            "basic.status": sale_label(order.state),
             "basic.partner_name": order.partner_name,
             "basic.note": order.note,
             "amount.total": float(total),
@@ -132,6 +173,8 @@ class SaleOrderAdapter(ModelAdapter):
             col = getattr(SaleOrder, col_name)
             op = term.op
             val = term.value
+            if term.field == "basic.status":
+                val = _as_sale_state(val)
             if op == "EQ":
                 stmt = stmt.where(col == val)
             elif op == "NE":
@@ -227,8 +270,8 @@ class SaleOrderAdapter(ModelAdapter):
             if existing and existing.tenant == ctx.tenant:
                 if partner:
                     existing.partner_name = partner
-                if status:
-                    existing.state = str(status)
+                if status not in (None, ""):
+                    existing.state = sale_code(status)
                 if note is not None:
                     existing.note = str(note) if note != "" else None
                 session.flush()
@@ -245,7 +288,7 @@ class SaleOrderAdapter(ModelAdapter):
                         "storage": {"basic": {
                             "uukey": existing.id,
                             "partner_name": existing.partner_name,
-                            "status": existing.state,
+                            "status": sale_label(existing.state),
                             "note": existing.note,
                         }},
                         "changed": True,
@@ -268,8 +311,8 @@ class SaleOrderAdapter(ModelAdapter):
             # if client sent preferred id and create used uuid — keep uuid as truth
             entity = session.get(SaleOrder, created["id"])
             assert entity is not None
-            if status and status != "draft":
-                entity.state = str(status)
+            if status not in (None, "") and sale_code(status) != sale_code("draft"):
+                entity.state = sale_code(status)
                 session.flush()
             current = self._to_values(entity)
             records.append(
@@ -284,7 +327,7 @@ class SaleOrderAdapter(ModelAdapter):
                     "storage": {"basic": {
                         "uukey": entity.id,
                         "partner_name": entity.partner_name,
-                        "status": entity.state,
+                        "status": sale_label(entity.state),
                         "note": entity.note,
                     }},
                     "changed": True,
@@ -309,48 +352,60 @@ class SystemUserAdapter(ModelAdapter):
     model = "base.user"
 
     COLS: dict[str, str] = {
-        "basic.uukey": "id",
-        "basic.username": "username",
-        "basic.realname": "realname",
+        "basic.uukey": "uukey",
+        "basic.utime": "utime",
+        "basic.name": "name",
+        "basic.phone": "phone",
         "basic.email": "email",
-        "basic.active": "active",
+        "basic.remark": "remark",
         "basic.team_id": "team_id",
     }
 
     def _to_values(self, user: Any, field_keys: list[str] | None = None) -> dict[str, Any]:
         raw = {
-            "basic.uukey": str(user.id),
+            "basic.uukey": user.uukey,
+            "basic.utime": user.utime.isoformat() if user.utime else None,
+            "basic.state": str(int(user.state or 0)),
             "basic.username": user.username,
             "basic.realname": user.realname,
+            "basic.name": user.name or "",
+            "basic.phone": user.phone or "",
             "basic.email": user.email or "",
+            "basic.remark": user.remark or "",
             "basic.active": "true" if user.active else "false",
-            "basic.team_id": user.team_id,
+            "basic.team_id": str(user.team_id) if user.team_id is not None else "",
         }
         if field_keys is None:
             return raw
         return {k: raw.get(k) for k in field_keys if k in raw}
 
     def _apply_terms(self, stmt: Any, terms: list[QueryTerm]) -> Any:
-        from modules.base.domain import SystemUser
+        from modules.base.domain import SystemLogin, SystemUser
 
         for term in terms:
-            col_name = self.COLS.get(term.field)
-            if not col_name:
-                continue
-            col = getattr(SystemUser, col_name)
             op = term.op
             val = term.value
-            if term.field == "basic.active":
-                if isinstance(val, str):
-                    val = val.lower() in ("1", "true", "yes", "y")
-                elif isinstance(val, list):
-                    val = [v.lower() in ("1", "true", "yes", "y") if isinstance(v, str) else bool(v) for v in val]
-            if term.field in ("basic.uukey", "basic.team_id") and val is not None and not isinstance(val, list):
+            if term.field == "basic.username":
+                col = SystemLogin.username
+            elif term.field == "basic.realname":
+                col = SystemLogin.realname
+            elif term.field == "basic.active":
+                col = SystemUser.state
+                val = _as_on_off(val)
+            elif term.field == "basic.state":
+                col = SystemUser.state
+                val = _as_on_off(val)
+            else:
+                col_name = self.COLS.get(term.field)
+                if not col_name:
+                    continue
+                col = getattr(SystemUser, col_name)
+            if term.field == "basic.team_id" and val is not None and not isinstance(val, list):
                 try:
                     val = int(val)
                 except (TypeError, ValueError):
                     pass
-            if term.field in ("basic.uukey", "basic.team_id") and isinstance(val, list):
+            if term.field == "basic.team_id" and isinstance(val, list):
                 casted = []
                 for v in val:
                     try:
@@ -385,34 +440,58 @@ class SystemUserAdapter(ModelAdapter):
         size: int,
         field_keys: list[str],
     ) -> tuple[list[dict[str, Any]], int, dict[str, Any] | None]:
-        from modules.base.domain import SystemUser
+        from modules.base.domain import SystemLogin, SystemUser
 
         page = max(int(page or 1), 1)
         size = min(max(int(size or 50), 1), 500)
         terms = parse_query(query)
-        base = select(SystemUser).where(SystemUser.tenant == ctx.tenant)
+        base = (
+            select(SystemUser)
+            .options(selectinload(SystemUser.login))
+            .join(SystemLogin, SystemUser.base_id == SystemLogin.id)
+            .where(SystemUser.tenant == ctx.tenant)
+        )
         base = self._apply_terms(base, terms)
 
         count = session.scalar(select(func.count()).select_from(base.subquery())) or 0
 
         order_field = (order or {}).get("field") or "basic.username"
         order_dir = str((order or {}).get("order") or "asc").lower()
-        col_name = self.COLS.get(str(order_field), "username")
-        col = getattr(SystemUser, col_name, SystemUser.username)
+        if order_field == "basic.username":
+            col: Any = SystemLogin.username
+        elif order_field == "basic.realname":
+            col = SystemLogin.realname
+        elif order_field == "basic.active":
+            col = SystemUser.state
+        else:
+            col_name = self.COLS.get(str(order_field), "uukey")
+            col = getattr(SystemUser, col_name, SystemUser.uukey)
         ordered = base.order_by(desc(col) if order_dir == "desc" else asc(col))
         rows = list(session.scalars(ordered.offset((page - 1) * size).limit(size)))
         values = [self._to_values(r, field_keys) for r in rows]
         return values, int(count), None
 
-    def get_values(self, session: Session, ctx: Ctx, uukey: str) -> dict[str, Any] | None:
+    def refers(self, session: Session, ctx: Ctx) -> dict[str, Any]:
+        from modules.base import domain as base_domain
+
+        return {"basic.team_id": base_domain.list_team_options(session, ctx)}
+
+    def _get_entity(self, session: Session, ctx: Ctx, uukey: str):
         from modules.base.domain import SystemUser
 
-        try:
-            uid = int(uukey)
-        except (TypeError, ValueError):
-            return None
-        user = session.get(SystemUser, uid)
-        if user is None or user.tenant != ctx.tenant:
+        stmt = (
+            select(SystemUser)
+            .options(selectinload(SystemUser.login))
+            .where(SystemUser.tenant == ctx.tenant)
+        )
+        row = session.scalar(stmt.where(SystemUser.uukey == uukey))
+        if row is None and uukey.isdigit():
+            row = session.scalar(stmt.where(SystemUser.id == int(uukey)))
+        return row
+
+    def get_values(self, session: Session, ctx: Ctx, uukey: str) -> dict[str, Any] | None:
+        user = self._get_entity(session, ctx, uukey)
+        if user is None:
             return None
         return self._to_values(user)
 
@@ -423,7 +502,6 @@ class SystemUserAdapter(ModelAdapter):
         batch: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         from modules.base import domain as base_domain
-        from modules.base.domain import SystemUser
 
         records: list[dict[str, Any]] = []
         for raw in batch:
@@ -431,47 +509,44 @@ class SystemUserAdapter(ModelAdapter):
             uukey = str(row.get("basic.uukey") or row.get("uukey") or "").strip()
             username = str(flatten_pick(row, "basic.username") or "").strip()
             realname = str(flatten_pick(row, "basic.realname") or "").strip()
+            name = str(flatten_pick(row, "basic.name") or "").strip()
+            phone = flatten_pick(row, "basic.phone")
             email = flatten_pick(row, "basic.email")
+            remark = flatten_pick(row, "basic.remark")
             password = flatten_pick(row, "basic.password")
-            active_raw = flatten_pick(row, "basic.active")
             team_raw = flatten_pick(row, "basic.team_id")
-
-            active: bool | None = None
-            if active_raw is not None and active_raw != "":
-                if isinstance(active_raw, str):
-                    active = active_raw.lower() in ("1", "true", "yes", "y")
-                else:
-                    active = bool(active_raw)
+            utime = _parse_datetime(flatten_pick(row, "basic.utime"))
 
             team_id: int | None = None
             if team_raw not in (None, ""):
                 team_id = int(team_raw)
 
-            existing = None
-            if uukey:
-                try:
-                    existing = session.get(SystemUser, int(uukey))
-                except (TypeError, ValueError):
-                    existing = None
-            if existing and existing.tenant == ctx.tenant:
+            existing = self._get_entity(session, ctx, uukey) if uukey else None
+            if existing:
                 kwargs: dict[str, Any] = {"user_id": existing.id}
                 if realname:
                     kwargs["realname"] = realname
+                if name:
+                    kwargs["name"] = name
+                if phone is not None:
+                    kwargs["phone"] = str(phone) if phone != "" else ""
+                if remark is not None:
+                    kwargs["remark"] = str(remark) if remark != "" else ""
                 if email is not None:
                     kwargs["email"] = str(email) if email != "" else ""
-                if active is not None:
-                    kwargs["active"] = active
-                if password not in (None, ""):
-                    kwargs["password"] = str(password)
                 if team_id is not None:
                     kwargs["team_id"] = team_id
+                if utime is not None:
+                    kwargs["utime"] = utime
+                if password not in (None, ""):
+                    kwargs["password"] = str(password)
                 updated = base_domain.update_user(session, ctx, **kwargs)
-                entity = session.get(SystemUser, updated["id"])
+                entity = self._get_entity(session, ctx, updated["uukey"])
                 assert entity is not None
                 current = self._to_values(entity)
                 records.append(
                     {
-                        "uukey": str(entity.id),
+                        "uukey": entity.uukey,
                         "model": self.model,
                         "opType": "UPDATE",
                         "exists": True,
@@ -486,28 +561,28 @@ class SystemUserAdapter(ModelAdapter):
                 )
                 continue
 
-            if not username or not realname:
-                raise AppError("validation_error", "username and realname are required")
-            if not password:
-                raise AppError("validation_error", "password is required for new user")
+            if not name and not realname:
+                raise AppError("validation_error", "name is required")
+            display_name = name or realname
             created = base_domain.create_user(
                 session,
                 ctx,
-                username=username,
-                realname=realname,
+                username=username or None,
+                realname=realname or display_name,
+                name=display_name,
+                phone=str(phone).strip() if phone not in (None, "") else None,
                 email=str(email).strip() if email not in (None, "") else None,
-                password=str(password),
+                remark=str(remark).strip() if remark not in (None, "") else None,
+                password=str(password) if password not in (None, "") else None,
                 team_id=team_id if team_id is not None else ctx.team_id,
+                utime=utime,
             )
-            entity = session.get(SystemUser, created["id"])
+            entity = self._get_entity(session, ctx, created["uukey"])
             assert entity is not None
-            if active is False:
-                entity.active = False
-                session.flush()
             current = self._to_values(entity)
             records.append(
                 {
-                    "uukey": str(entity.id),
+                    "uukey": entity.uukey,
                     "model": self.model,
                     "opType": "INSERT",
                     "exists": False,
@@ -526,14 +601,13 @@ class SystemUserAdapter(ModelAdapter):
         from modules.base import domain as base_domain
 
         for key in keys:
-            try:
-                uid = int(key)
-            except (TypeError, ValueError):
+            entity = self._get_entity(session, ctx, str(key).strip())
+            if entity is None:
                 continue
-            if uid == ctx.user_id:
+            if entity.id == ctx.user_id:
                 raise AppError("validation_error", "cannot delete the current user")
             try:
-                base_domain.delete_user(session, ctx, user_id=uid)
+                base_domain.delete_user(session, ctx, user_id=entity.id)
             except AppError as exc:
                 if exc.code == "not_found":
                     continue

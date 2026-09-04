@@ -71,7 +71,7 @@ def _loads_tags(raw: str | None) -> list[str]:
 
 
 class DocAsset(Base):
-    __tablename__ = "doc_assets"
+    __tablename__ = "doc_asset"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     tenant: Mapped[int] = mapped_column(Integer, index=True)

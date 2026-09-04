@@ -33,11 +33,52 @@ def client(monkeypatch):
 
 
 def test_vue_shell_apis(client: TestClient):
-    assert client.post("/api/auth/login", json={"username": "admin", "password": "admin123"}).status_code == 200
+    logged = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    assert logged.status_code == 200
+    assert str(logged.json()["user"]["uukey"]).startswith("USER")
+
+    me = client.get("/api/auth/me")
+    assert me.status_code == 200
+    assert str(me.json()["user"]["uukey"]).startswith("USER")
 
     users = client.get("/api/base/users")
     assert users.status_code == 200
     assert users.json()["items"]
+
+    user_form = client.post(
+        "/api/record/input",
+        json={"model": "base.user", "using": "default", "scene": "INSERT"},
+    )
+    assert user_form.status_code == 200, user_form.text
+    field_keys = {f["uukey"] for f in user_form.json()["input"]["fields"]}
+    assert "basic.uukey" in field_keys
+    assert "basic.team_id" in field_keys
+    assert "basic.name" in field_keys
+    assert "basic.utime" in field_keys
+    assert "basic.phone" in field_keys
+    assert "basic.email" in field_keys
+    assert "basic.remark" in field_keys
+    assert "basic.username" not in field_keys
+    assert "basic.realname" not in field_keys
+    assert "basic.password" not in field_keys
+    assert "basic.active" not in field_keys
+    team_field = next(f for f in user_form.json()["input"]["fields"] if f["uukey"] == "basic.team_id")
+    assert team_field["ftype"].upper() == "OPTIONAL"
+    assert str(team_field.get("extra", {}).get("editable") or "").upper() == "INSERT"
+    team_opts = user_form.json()["input"]["refers"]["basic.team_id"]
+    assert team_opts
+    assert all("uukey" in o and "label" in o for o in team_opts)
+
+    listed = client.post(
+        "/api/record/search",
+        json={"model": "base.user", "using": "default", "scene": "SEARCH", "page": 1, "size": 50},
+    )
+    assert listed.status_code == 200, listed.text
+    assert listed.json()["refers"]["basic.team_id"]
+    user_row = listed.json()["values"][0]
+    assert str(user_row["basic.uukey"]).startswith("USER")
+    assert user_row["basic.state"] in ("1", 1)
+    assert user_row.get("basic.utime")
 
     roles = client.get("/api/base/roles")
     assert roles.status_code == 200
@@ -46,6 +87,23 @@ def test_vue_shell_apis(client: TestClient):
     mods = client.get("/api/base/modules")
     assert mods.status_code == 200
     assert any(m["id"] == "base" for m in mods.json()["modules"])
+
+    schema = client.post("/api/record/schema", json={"model": "base.user", "using": "default"})
+    assert schema.status_code == 200, schema.text
+    click_ids = {c["uukey"] for c in schema.json()["table"]["clicks"]}
+    assert "create" in click_ids
+    assert "delete" not in click_ids
+    assert {"set_role", "set_pswd", "enable", "disable"} <= click_ids
+    grouped = {c["uukey"]: c.get("group") for c in schema.json()["table"]["clicks"]}
+    assert grouped["set_role"] == grouped["set_pswd"] == grouped["enable"] == grouped["disable"] == "account"
+    assert not grouped.get("create")
+
+    admin = users.json()["items"][0]
+    user_roles = client.get(f"/api/base/users/{admin['uukey']}/roles")
+    assert user_roles.status_code == 200, user_roles.text
+    assert user_roles.json()["user_id"] == admin["id"]
+    assert "roles" in user_roles.json()
+    assert "assigned" in user_roles.json()
 
     wiki = client.get("/api/wiki/pages")
     assert wiki.status_code == 200

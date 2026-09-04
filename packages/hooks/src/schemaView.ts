@@ -9,7 +9,7 @@ export type SchemaTable = {
   fields: SchemaField[]
   sticky?: string[]
   refers?: ReferDict
-  clicks?: { uukey: string; label?: string; action?: string }[]
+  clicks?: { uukey: string; label?: string; action?: string; group?: string; seqno?: number }[]
   createDefaults?: Record<string, unknown>
   request?: SchemaRequest
 }

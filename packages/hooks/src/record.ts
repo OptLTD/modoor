@@ -21,6 +21,7 @@ export type SchemaClick = {
   action?: string
   ctype?: string
   seqno?: number
+  group?: string
 }
 
 export type SchemaTable = {

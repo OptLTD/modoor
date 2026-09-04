@@ -1,9 +1,15 @@
-import { get, post } from '@modoor/hooks'
+import { get, post, throwHttpError } from '@modoor/hooks'
 
 export type User = {
   id: number
+  uukey?: string
+  base_id?: number
   username: string
   realname: string
+  name?: string
+  phone?: string | null
+  remark?: string | null
+  current?: number | null
   email?: string | null
   active: boolean
   team_id: number
@@ -30,14 +36,14 @@ export async function createUser(body: {
   username: string
   realname: string
   email?: string
-  password: string
+  password?: string
   team_id?: number
 }) {
   return post<{ ok: boolean; user: User }>('/api/base/users', body)
 }
 
 export async function updateUser(
-  userId: number,
+  userKey: number | string,
   body: {
     realname?: string
     email?: string
@@ -46,23 +52,23 @@ export async function updateUser(
     team_id?: number
   },
 ) {
-  const res = await fetch(`/api/base/users/${userId}`, {
+  const res = await fetch(`/api/base/users/${encodeURIComponent(String(userKey))}`, {
     method: 'PATCH',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error(await res.text())
+  if (!res.ok) await throwHttpError(res)
   return res.json() as Promise<{ ok: boolean; user: User }>
 }
 
-export async function deleteUser(userId: number) {
-  const res = await fetch(`/api/base/users/${userId}`, {
+export async function deleteUser(userKey: number | string) {
+  const res = await fetch(`/api/base/users/${encodeURIComponent(String(userKey))}`, {
     method: 'DELETE',
     credentials: 'include',
     headers: { Accept: 'application/json' },
   })
-  if (!res.ok) throw new Error(await res.text())
+  if (!res.ok) await throwHttpError(res)
   return res.json()
 }
 
@@ -84,7 +90,7 @@ export async function updateTeam(
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error(await res.text())
+  if (!res.ok) await throwHttpError(res)
   return res.json() as Promise<{ ok: boolean; team: TeamNode }>
 }
 
@@ -94,7 +100,7 @@ export async function deleteTeam(teamId: number) {
     credentials: 'include',
     headers: { Accept: 'application/json' },
   })
-  if (!res.ok) throw new Error(await res.text())
+  if (!res.ok) await throwHttpError(res)
   return res.json()
 }
 
@@ -125,7 +131,7 @@ export async function setRoleNodes(roleId: string, nodes: string[]) {
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ nodes }),
   })
-  if (!res.ok) throw new Error(await res.text())
+  if (!res.ok) await throwHttpError(res)
   return res.json() as Promise<{ role_id: string; nodes: string[]; count: number }>
 }
 
@@ -143,8 +149,17 @@ export async function deleteRole(roleId: string) {
     method: 'DELETE',
     credentials: 'include',
   })
-  if (!res.ok) throw new Error(await res.text())
+  if (!res.ok) await throwHttpError(res)
   return res.json()
+}
+
+export async function fetchUserRoles(userKey: number | string) {
+  return get<{
+    ok: boolean
+    user_id: number
+    roles: { id: string; code: string; name: string; app_id?: string | null; description?: string | null }[]
+    assigned: { id: string; code: string; name: string }[]
+  }>(`/api/base/users/${encodeURIComponent(String(userKey))}/roles`)
 }
 
 export async function assignRole(user_id: number, role_id: string) {

@@ -55,8 +55,11 @@ class EngineService:
         scene = str(body.get("scene") or ("DETAIL" if uukey else "INSERT"))
         bundle = get_bundle(model)
         inp = project_input(bundle, using=using, scene=scene, uukey=uukey)
+        adapter = get_adapter(model)
+        refers = dict(inp.get("refers") or {})
+        refers.update(adapter.refers(session, ctx) or {})
+        inp["refers"] = refers
         if uukey:
-            adapter = get_adapter(model)
             values = adapter.get_values(session, ctx, uukey)
             if values is None:
                 raise AppError("not_found", f"record not found: {uukey}")
@@ -112,6 +115,7 @@ class EngineService:
             field_keys=field_keys,
         )
         refers = dict(table.get("refers") or {})
+        refers.update(adapter.refers(session, ctx) or {})
         return {
             "page": page,
             "size": size,

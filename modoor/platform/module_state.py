@@ -19,9 +19,9 @@ ALWAYS_ON = frozenset({"base"})
 
 
 class ModuleInstall(Base):
-    __tablename__ = "module_installs"
+    __tablename__ = "module_install"
     __table_args__ = (
-        UniqueConstraint("tenant", "module_id", name="uq_module_installs_tenant_module"),
+        UniqueConstraint("tenant", "module_id", name="uq_module_install_tenant_module"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)

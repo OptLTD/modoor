@@ -9,9 +9,9 @@
           <button
             type="button"
             class="btn primary"
-            :title="t('base.newChildTeam')"
+            :title="t('base.newTeam')"
             :disabled="!rootTeamId"
-            @click="onAddTeam(selectedTeamId ?? rootTeamId)"
+            @click="onAddTeam"
           >
             {{ t('base.newTeam') }}
           </button>
@@ -33,7 +33,6 @@
             :depth="0"
             :active-id="selectedTeamId"
             @select="selectTeam"
-            @add-child="onAddTeam"
             @rename="onRenameTeam"
             @remove="onDeleteTeam"
           />
@@ -52,25 +51,95 @@
         <p v-if="bootError" class="error">{{ bootError }}</p>
         <SchemaTable
           v-if="table"
+          ref="tableRef"
           :key="tableKey"
           :table="table"
           using="default"
+          :hide-export="true"
+          @toolbar-click="onToolbarClick"
         />
         <div v-else class="empty-right muted">{{ t('base.loadingUsers') }}</div>
       </main>
     </div>
+
+    <div v-if="pwdOpen" class="modal-mask" @click.self="closePassword">
+      <div class="modal pwd-modal">
+        <header class="modal-head">
+          <strong>{{ t('base.changePassword') }}</strong>
+          <button type="button" class="link" @click="closePassword">{{ t('widget.close') }}</button>
+        </header>
+        <form class="form" @submit.prevent="submitPassword">
+          <p v-if="pwdUserName" class="muted">{{ pwdUserName }}</p>
+          <label>
+            {{ t('base.newPassword') }}
+            <input v-model="pwd1" type="password" autocomplete="new-password" />
+          </label>
+          <label>
+            {{ t('base.confirmPassword') }}
+            <input v-model="pwd2" type="password" autocomplete="new-password" />
+          </label>
+          <p v-if="pwdError" class="error">{{ pwdError }}</p>
+          <div class="modal-actions pwd-actions">
+            <button type="button" class="btn" @click="closePassword">{{ t('widget.cancel') }}</button>
+            <button type="submit" class="btn primary" :disabled="pwdSaving">
+              {{ pwdSaving ? t('widget.saving') : t('widget.save') }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div v-if="roleOpen" class="modal-mask" @click.self="closeRoles">
+      <div class="modal pwd-modal">
+        <header class="modal-head">
+          <strong>{{ t('base.setRole') }}</strong>
+          <button type="button" class="link" @click="closeRoles">{{ t('widget.close') }}</button>
+        </header>
+        <form class="form" @submit.prevent="submitRoles">
+          <p v-if="roleUserName" class="muted">{{ roleUserName }}</p>
+          <p v-if="!allRoles.length" class="muted">{{ t('base.noRolesToAssign') }}</p>
+          <label v-for="r in allRoles" :key="r.id" class="role-check">
+            <input
+              type="checkbox"
+              :checked="pickedRoleIds.includes(r.id)"
+              @change="togglePickedRole(r.id, ($event.target as HTMLInputElement).checked)"
+            />
+            <span>{{ r.name }}</span>
+            <code>{{ r.code }}</code>
+          </label>
+          <p v-if="roleError" class="error">{{ roleError }}</p>
+          <div class="modal-actions pwd-actions">
+            <button type="button" class="btn" @click="closeRoles">{{ t('widget.cancel') }}</button>
+            <button type="submit" class="btn primary" :disabled="roleSaving">
+              {{ roleSaving ? t('widget.saving') : t('widget.save') }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { fetchSchema, useI18n, type SchemaTable as SchemaTableData } from '@modoor/hooks'
+import {
+  fetchMe,
+  fetchSchema,
+  useI18n,
+  type SchemaClick,
+  type SchemaTable as SchemaTableData,
+} from '@modoor/hooks'
 import { SchemaTable } from '@modoor/widget/SchemaTable'
 import {
+  assignRole,
   createTeam,
   deleteTeam,
+  fetchUserRoles,
   listTeamTree,
+  revokeRole,
   updateTeam,
+  updateUser,
   type TeamNode,
 } from '../api/base'
 import OrgTreeNode from '../components/OrgTreeNode.vue'
@@ -81,6 +150,25 @@ const bootError = ref('')
 const teamTree = ref<TeamNode[]>([])
 const selectedTeamId = ref<number | null>(null)
 const table = ref<SchemaTableData | null>(null)
+const tableRef = ref<{ reload: () => void | Promise<void> } | null>(null)
+const meUserId = ref<string | null>(null)
+
+const pwdOpen = ref(false)
+const pwdUserId = ref<string | null>(null)
+const pwdUserName = ref('')
+const pwd1 = ref('')
+const pwd2 = ref('')
+const pwdError = ref('')
+const pwdSaving = ref(false)
+
+const roleOpen = ref(false)
+const roleSaving = ref(false)
+const roleError = ref('')
+const roleUserId = ref<number | null>(null)
+const roleUserName = ref('')
+const allRoles = ref<{ id: string; code: string; name: string }[]>([])
+const pickedRoleIds = ref<string[]>([])
+const savedRoleIds = ref<string[]>([])
 
 const rootTeamId = computed(() => teamTree.value[0]?.id ?? null)
 
@@ -126,6 +214,27 @@ function teamQuery(): Record<string, unknown> | undefined {
   return { 'basic.team_id:IN': ids }
 }
 
+function rowUserKey(row: Record<string, unknown>) {
+  return String(row['basic.uukey'] ?? row.uukey ?? '').trim()
+}
+
+function rowUserName(row: Record<string, unknown>) {
+  return String(row['basic.name'] || row['basic.realname'] || row['basic.username'] || '')
+}
+
+function isRowActive(row: Record<string, unknown>) {
+  const v = row['basic.active']
+  if (v === true || v === 'true' || v === 1 || v === '1') return true
+  if (v === false || v === 'false' || v === 0 || v === '0') return false
+  const state = row['basic.state']
+  return state === 1 || state === '1'
+}
+
+function isCurrentUser(row: Record<string, unknown>) {
+  if (meUserId.value == null) return false
+  return rowUserKey(row) === meUserId.value
+}
+
 async function bootTable() {
   bootError.value = ''
   try {
@@ -139,10 +248,10 @@ async function bootTable() {
         ...(res.table.request || {}),
         query: teamQuery(),
       },
-      createDefaults:
-        selectedTeamId.value != null
-          ? { 'basic.team_id': selectedTeamId.value, 'basic.active': 'true' }
-          : { 'basic.active': 'true' },
+      createDefaults: (() => {
+        const teamId = selectedTeamId.value ?? rootTeamId.value
+        return teamId != null ? { 'basic.team_id': String(teamId) } : undefined
+      })(),
     }
   } catch (e) {
     bootError.value = e instanceof Error ? e.message : String(e)
@@ -169,15 +278,15 @@ watch(selectedTeamId, () => {
   void bootTable()
 })
 
-async function onAddTeam(parentId: number | null) {
-  if (parentId == null) {
-    error.value = t('base.pickParent')
+async function onAddTeam() {
+  if (rootTeamId.value == null) {
+    error.value = t('base.noHeadTeam')
     return
   }
-  const name = prompt(t('base.childName'))
+  const name = prompt(t('base.teamName'))
   if (!name?.trim()) return
   try {
-    await createTeam({ name: name.trim(), parent: parentId })
+    await createTeam({ name: name.trim() })
     await reloadTeams()
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
@@ -206,7 +315,167 @@ async function onDeleteTeam(node: TeamNode) {
   }
 }
 
-onMounted(reload)
+function onToolbarClick(payload: {
+  click: SchemaClick
+  keys: string[]
+  rows: Record<string, unknown>[]
+}) {
+  const row = payload.rows[0]
+  switch (payload.click.uukey) {
+    case 'set_role':
+      if (row) void onOpenRoles(row)
+      return
+    case 'set_pswd':
+      if (row) onOpenPassword(row)
+      return
+    case 'enable':
+      void onSetActiveRows(payload.rows, true)
+      return
+    case 'disable':
+      void onSetActiveRows(payload.rows, false)
+      return
+  }
+}
+
+async function onSetActiveRows(targets: Record<string, unknown>[], next: boolean) {
+  const rows = targets.filter((row) => {
+    if (isCurrentUser(row) && !next) return false
+    return next !== isRowActive(row)
+  })
+  if (!rows.length) {
+    if (targets.some((row) => isCurrentUser(row) && !next)) {
+      error.value = t('base.cannotDisableSelf')
+    }
+    return
+  }
+  const name = rows.length === 1 ? rowUserName(rows[0]) : String(rows.length)
+  const ok = confirm(
+    next ? t('base.confirmEnable', { name }) : t('base.confirmDisable', { name }),
+  )
+  if (!ok) return
+  try {
+    for (const row of rows) {
+      const id = rowUserKey(row)
+      if (id) await updateUser(id, { active: next })
+    }
+    await tableRef.value?.reload()
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e)
+  }
+}
+
+function onOpenPassword(row: Record<string, unknown>) {
+  const id = rowUserKey(row)
+  if (!id) return
+  pwdUserId.value = id
+  pwdUserName.value = rowUserName(row)
+  pwd1.value = ''
+  pwd2.value = ''
+  pwdError.value = ''
+  pwdOpen.value = true
+}
+
+async function onOpenRoles(row: Record<string, unknown>) {
+  const key = rowUserKey(row)
+  if (!key) return
+  roleError.value = ''
+  roleUserName.value = rowUserName(row)
+  roleOpen.value = true
+  try {
+    const res = await fetchUserRoles(key)
+    roleUserId.value = res.user_id
+    allRoles.value = res.roles || []
+    const assigned = (res.assigned || []).map((r) => r.id)
+    savedRoleIds.value = assigned
+    pickedRoleIds.value = [...assigned]
+  } catch (e) {
+    roleError.value = e instanceof Error ? e.message : String(e)
+    allRoles.value = []
+    pickedRoleIds.value = []
+    savedRoleIds.value = []
+    roleUserId.value = null
+  }
+}
+
+function closeRoles() {
+  roleOpen.value = false
+  roleUserId.value = null
+  roleUserName.value = ''
+  allRoles.value = []
+  pickedRoleIds.value = []
+  savedRoleIds.value = []
+  roleError.value = ''
+}
+
+function togglePickedRole(id: string, on: boolean) {
+  if (on) {
+    if (!pickedRoleIds.value.includes(id)) pickedRoleIds.value = [...pickedRoleIds.value, id]
+    return
+  }
+  pickedRoleIds.value = pickedRoleIds.value.filter((x) => x !== id)
+}
+
+async function submitRoles() {
+  if (roleUserId.value == null) return
+  roleSaving.value = true
+  roleError.value = ''
+  try {
+    const current = new Set(savedRoleIds.value)
+    const next = new Set(pickedRoleIds.value)
+    for (const id of next) {
+      if (!current.has(id)) await assignRole(roleUserId.value, id)
+    }
+    for (const id of current) {
+      if (!next.has(id)) await revokeRole(roleUserId.value, id)
+    }
+    closeRoles()
+  } catch (e) {
+    roleError.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    roleSaving.value = false
+  }
+}
+
+function closePassword() {
+  pwdOpen.value = false
+  pwdUserId.value = null
+  pwdUserName.value = ''
+  pwd1.value = ''
+  pwd2.value = ''
+  pwdError.value = ''
+}
+
+async function submitPassword() {
+  if (pwdUserId.value == null) return
+  if (!pwd1.value) {
+    pwdError.value = t('base.passwordRequired')
+    return
+  }
+  if (pwd1.value !== pwd2.value) {
+    pwdError.value = t('base.passwordMismatch')
+    return
+  }
+  pwdSaving.value = true
+  pwdError.value = ''
+  try {
+    await updateUser(pwdUserId.value, { password: pwd1.value })
+    closePassword()
+  } catch (e) {
+    pwdError.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    pwdSaving.value = false
+  }
+}
+
+onMounted(async () => {
+  try {
+    const me = await fetchMe()
+    meUserId.value = me.user?.uukey != null ? String(me.user.uukey) : null
+  } catch {
+    meUserId.value = null
+  }
+  await reload()
+})
 </script>
 
 <style scoped>
@@ -307,6 +576,27 @@ onMounted(reload)
 
 .users-right :deep(.toolbar) {
   padding: 10px 0px;
+}
+
+.pwd-modal {
+  width: min(420px, 100%);
+}
+
+.pwd-actions {
+  padding-bottom: 4px;
+}
+
+.role-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.role-check code {
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: var(--muted);
 }
 
 @media (max-width: 800px) {

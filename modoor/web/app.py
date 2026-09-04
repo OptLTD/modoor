@@ -29,7 +29,6 @@ from modoor.web.nav import (
     resolve_home,
 )
 from modules.base import domain as base_domain
-from modules.base.domain import SystemUser
 
 
 @asynccontextmanager
@@ -220,8 +219,8 @@ def _user_from_ticket(token: str | None):
     if not payload:
         return None
     with session_scope() as session:
-        user = session.get(SystemUser, payload["user_id"])
-        if user is None or not user.active or user.tenant != payload["tenant"]:
+        user = base_domain.load_user(session, payload["user_id"], tenant=payload["tenant"])
+        if user is None or not user.active:
             return None
         if user.tenant != kit.tenant():
             return None

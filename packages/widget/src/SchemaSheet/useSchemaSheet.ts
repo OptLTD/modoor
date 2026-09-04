@@ -417,7 +417,7 @@ export function useSchemaSheet(props: ToRefs<SchemaSheetProps>) {
       appToast(mode.value === 'import' ? `已导入 ${savedN} 行` : `已保存 ${savedN} 行`)
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : String(e)
-      appToast(error.value)
+      appToast(error.value, 'error')
     } finally {
       saving.value = false
     }

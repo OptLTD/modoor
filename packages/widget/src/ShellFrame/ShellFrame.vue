@@ -25,7 +25,7 @@
             role="option"
             @click="goModule(m)"
           >
-            <strong>{{ m.label }}</strong>
+            <span>{{ m.label }}</span>
           </button>
         </div>
       </div>

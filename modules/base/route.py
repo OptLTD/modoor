@@ -17,16 +17,22 @@ router = APIRouter(prefix="/api/base", tags=["base"])
 
 
 class UserCreate(BaseModel):
-    username: str
+    username: str | None = None
     realname: str
+    name: str | None = None
+    phone: str | None = None
     email: str | None = None
-    password: str
+    remark: str | None = None
+    password: str | None = None
     team_id: int | None = None
 
 
 class UserUpdate(BaseModel):
     realname: str | None = None
+    name: str | None = None
+    phone: str | None = None
     email: str | None = None
+    remark: str | None = None
     active: bool | None = None
     password: str | None = None
     team_id: int | None = None
@@ -85,7 +91,10 @@ def api_create_user(request: Request, body: UserCreate) -> dict[str, Any]:
             kwargs: dict[str, Any] = {
                 "username": body.username,
                 "realname": body.realname,
+                "name": body.name,
+                "phone": body.phone,
                 "email": body.email,
+                "remark": body.remark,
                 "password": body.password,
             }
             if "team_id" in data:
@@ -96,37 +105,64 @@ def api_create_user(request: Request, body: UserCreate) -> dict[str, Any]:
         raise http_error(exc) from exc
 
 
-@router.patch("/users/{user_id}")
-def api_update_user(request: Request, user_id: int, body: UserUpdate) -> dict[str, Any]:
+@router.patch("/users/{user_key}")
+def api_update_user(request: Request, user_key: str, body: UserUpdate) -> dict[str, Any]:
     user = require_user(request)
     try:
         with session_scope() as session:
+            ctx = ctx_of(user)
+            target = base_domain.resolve_user_key(session, ctx, user_key)
             kwargs: dict[str, Any] = {
-                "user_id": user_id,
+                "user_id": target.id,
                 "realname": body.realname,
+                "name": body.name,
+                "phone": body.phone,
                 "email": body.email,
+                "remark": body.remark,
                 "active": body.active,
                 "password": body.password,
             }
             data = body.model_dump(exclude_unset=True)
             if "team_id" in data:
                 kwargs["team_id"] = data["team_id"]
-            row = base_domain.update_user(session, ctx_of(user), **kwargs)
+            row = base_domain.update_user(session, ctx, **kwargs)
         return {"ok": True, "user": row}
     except Exception as exc:  # noqa: BLE001
         raise http_error(exc) from exc
 
 
-@router.delete("/users/{user_id}")
-def api_delete_user(request: Request, user_id: int) -> dict[str, Any]:
+@router.get("/users/{user_key}/roles")
+def api_user_roles(request: Request, user_key: str) -> dict[str, Any]:
+    user = require_user(request)
+    try:
+        with session_scope() as session:
+            ctx = ctx_of(user)
+            target = base_domain.resolve_user_key(session, ctx, user_key)
+            assigned = base_domain.list_user_roles(session, ctx, user_id=target.id)
+            roles = base_domain.list_roles(session, ctx, limit=200)["items"]
+            payload = {
+                "ok": True,
+                "user_id": target.id,
+                "roles": roles,
+                "assigned": assigned["roles"],
+            }
+        return payload
+    except Exception as exc:  # noqa: BLE001
+        raise http_error(exc) from exc
+
+
+@router.delete("/users/{user_key}")
+def api_delete_user(request: Request, user_key: str) -> dict[str, Any]:
     from modoor.core.errors import AppError
 
     user = require_user(request)
-    if user.id == user_id:
-        raise http_error(AppError("validation_error", "cannot delete the current user"))
     try:
         with session_scope() as session:
-            base_domain.delete_user(session, ctx_of(user), user_id=user_id)
+            ctx = ctx_of(user)
+            target = base_domain.resolve_user_key(session, ctx, user_key)
+            if user.id == target.id:
+                raise AppError("validation_error", "cannot delete the current user")
+            base_domain.delete_user(session, ctx, user_id=target.id)
         return {"ok": True}
     except Exception as exc:  # noqa: BLE001
         raise http_error(exc) from exc

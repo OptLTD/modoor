@@ -161,6 +161,7 @@ def profile_dict(user: Any | None) -> dict[str, Any] | None:
         "email": user.email,
         "team_id": user.team_id,
         "tenant": user.tenant,
+        "current": user.current,
     }
 
 

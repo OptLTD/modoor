@@ -16,7 +16,6 @@
       </button>
       <span v-else class="twist muted">·</span>
       <span class="title">{{ node.name }}</span>
-      <button type="button" class="ghost" :title="t('base.newChildTeam')" @click.stop="$emit('add-child', node.id)">+</button>
       <button type="button" class="ghost" :title="t('base.rename')" @click.stop="$emit('rename', node)">✎</button>
       <button
         v-if="node.parent != null"
@@ -34,7 +33,6 @@
         :depth="depth + 1"
         :active-id="activeId"
         @select="$emit('select', $event)"
-        @add-child="$emit('add-child', $event)"
         @rename="$emit('rename', $event)"
         @remove="$emit('remove', $event)"
       />
@@ -55,7 +53,6 @@ defineProps<{
 
 defineEmits<{
   select: [id: number]
-  'add-child': [parentId: number]
   rename: [node: TeamNode]
   remove: [node: TeamNode]
 }>()

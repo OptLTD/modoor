@@ -75,7 +75,7 @@ def markdown_to_blocks_json(raw: str) -> str:
 
 
 class WikiProject(Base):
-    __tablename__ = "wiki_projects"
+    __tablename__ = "wiki_project"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     tenant: Mapped[int] = mapped_column(Integer, index=True)
@@ -92,7 +92,7 @@ class WikiProject(Base):
 
 
 class WikiPage(Base):
-    __tablename__ = "wiki_pages"
+    __tablename__ = "wiki_page"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     tenant: Mapped[int] = mapped_column(Integer, index=True)

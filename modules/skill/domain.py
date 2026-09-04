@@ -22,10 +22,10 @@ CUSTOM_MODULE_ID = "custom"
 
 
 class SkillItem(Base):
-    __tablename__ = "skill_items"
+    __tablename__ = "skill_item"
     __table_args__ = (
         UniqueConstraint(
-            "tenant", "skill_key", name="uq_skill_items_tenant_key"
+            "tenant", "skill_key", name="uq_skill_item_tenant_key"
         ),
     )
 

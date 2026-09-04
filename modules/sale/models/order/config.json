@@ -3,8 +3,8 @@
     "uukey": "sale.order",
     "title": "销售订单",
     "brief": "Sale order (domain + schema dual-write)",
-    "source": "sale_orders",
-    "search": "sale_orders",
+    "source": "sale_order",
+    "search": "sale_order",
     "extra": { "constant": "SO", "counting": 5 }
   },
   "groups": {

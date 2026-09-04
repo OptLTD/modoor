@@ -180,7 +180,7 @@ export function Shell({
               role="option"
               onClick={() => goModule(m)}
             >
-              <strong>{localizedAppLabel(m, locale, m.label)}</strong>
+              {localizedAppLabel(m, locale, m.label)}
             </button>
           ))}
         </div>
@@ -214,7 +214,7 @@ export function Shell({
               role="option"
               onClick={() => goProject(p)}
             >
-              <strong>{p.name}</strong>
+              <span>{p.name}</span>
             </button>
           ))}
           <div className="switcher-actions">

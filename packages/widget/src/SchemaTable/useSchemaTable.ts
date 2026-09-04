@@ -45,7 +45,11 @@ function widthStorageKey(model: string, id: string) {
 /**
  * Schema list：加载、列宽/sticky、筛选、排序、选择、表单、导出。
  */
-export function useSchemaTable(props: { table: SchemaTable; using?: string }) {
+export function useSchemaTable(props: {
+  table: SchemaTable
+  using?: string
+  actionMin?: number
+}) {
   const rows = ref<Record<string, unknown>[]>([])
   const totals = ref<Record<string, unknown>>({})
   const count = ref(0)
@@ -67,7 +71,8 @@ export function useSchemaTable(props: { table: SchemaTable; using?: string }) {
   const formRow = ref<Record<string, unknown> | null>(null)
 
   const colWidths = reactive<Record<string, number>>({})
-  const actionWidth = ref(48)
+  const actionResizeMin = computed(() => Math.max(ACTION_MIN, props.actionMin ?? 48))
+  const actionWidth = ref(actionResizeMin.value)
 
   const fields = computed(() => props.table.fields || [])
   const using = computed(() => props.using || props.table.using || 'default')
@@ -89,13 +94,27 @@ export function useSchemaTable(props: { table: SchemaTable; using?: string }) {
   })
 
   const pages = computed(() => Math.max(1, Math.ceil(count.value / size.value)))
+  const toolbarClicks = computed(() => props.table.clicks || [])
+  const toolbarClusters = computed(() => {
+    const out: { key: string; group?: string; clicks: SchemaClick[] }[] = []
+    for (const c of toolbarClicks.value) {
+      const g = String(c.group || '').trim() || undefined
+      const last = out[out.length - 1]
+      if (g && last?.group === g) {
+        last.clicks.push(c)
+        continue
+      }
+      out.push({ key: g ? `g:${g}` : c.uukey, group: g, clicks: [c] })
+    }
+    return out
+  })
   const createClicks = computed(() =>
-    (props.table.clicks || []).filter(
+    toolbarClicks.value.filter(
       (c: SchemaClick) => c.action === 'record.create' || c.uukey === 'create',
     ),
   )
   const deleteEnabled = computed(() =>
-    (props.table.clicks || []).some((c) => c.action === 'record.delete' || c.uukey === 'delete'),
+    toolbarClicks.value.some((c) => c.action === 'record.delete' || c.uukey === 'delete'),
   )
 
   function fieldWidth(f: SchemaField) {
@@ -115,7 +134,10 @@ export function useSchemaTable(props: { table: SchemaTable; using?: string }) {
     const aw = localStorage.getItem(widthStorageKey(model, ACTION_KEY))
     if (aw) {
       const n = Number(aw)
-      if (Number.isFinite(n) && n >= ACTION_MIN) actionWidth.value = n
+      if (Number.isFinite(n) && n >= actionResizeMin.value) actionWidth.value = n
+      else actionWidth.value = actionResizeMin.value
+    } else if (actionWidth.value < actionResizeMin.value) {
+      actionWidth.value = actionResizeMin.value
     }
   }
 
@@ -524,6 +546,10 @@ export function useSchemaTable(props: { table: SchemaTable; using?: string }) {
     filterOpen.value = null
   }
 
+  watch(actionResizeMin, (min) => {
+    if (actionWidth.value < min) actionWidth.value = min
+  })
+
   watch(
     () => props.table.model,
     () => {
@@ -557,6 +583,7 @@ export function useSchemaTable(props: { table: SchemaTable; using?: string }) {
   return {
     CHECK_W,
     ACTION_MIN,
+    actionResizeMin,
     ACTION_KEY,
     rows,
     totals,
@@ -568,6 +595,7 @@ export function useSchemaTable(props: { table: SchemaTable; using?: string }) {
     loading,
     selectedKeys,
     displayFields,
+    toolbarClusters,
     createClicks,
     deleteEnabled,
     actionWidth,

@@ -1,5 +1,6 @@
 import { computed, reactive, ref, watch } from 'vue'
 import {
+  appToast,
   fetchInputSchema,
   upsertRecords,
   type SchemaField,
@@ -75,7 +76,10 @@ export function useFormModal(props: FormModalProps, emit: FormModalEmit) {
 
   function resetForm() {
     error.value = ''
-    const source = props.mode === 'edit' ? props.row : inputValues.value
+    const source =
+      props.mode === 'edit'
+        ? { ...(props.row || {}), ...(inputValues.value || {}) }
+        : inputValues.value
     for (const f of formFields.value) {
       const fk = fieldKey(f)
       form[fk] = formFieldDefault(source, f)
@@ -153,7 +157,7 @@ export function useFormModal(props: FormModalProps, emit: FormModalEmit) {
       emit('saved')
       emit('close')
     } catch (e: unknown) {
-      error.value = e instanceof Error ? e.message : String(e)
+      appToast(e instanceof Error ? e.message : String(e), 'error')
     } finally {
       saving.value = false
     }

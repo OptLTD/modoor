@@ -1,10 +1,10 @@
 {
   "model": {
     "uukey": "base.user",
-    "title": "用户",
-    "brief": "Tenant users",
-    "source": "base_users",
-    "search": "base_users",
+    "title": "员工",
+    "brief": "Tenant employees",
+    "source": "base_user",
+    "search": "base_user",
     "extra": {}
   },
   "groups": {
@@ -20,42 +20,83 @@
   "fields": {
     "basic.uukey": {
       "field": "uukey",
-      "ftype": "STRING",
+      "ftype": "SERIALNO",
       "group": "basic",
       "index": "basic.uukey",
-      "label": "ID",
+      "label": "员工编号",
       "seqno": 1,
-      "width": 72,
-      "extra": { "editable": "NEVER", "implicit": true }
+      "width": 96,
+      "extra": { 
+        "editable": "NEVER",
+        "constant": "USER",
+        "counting": 5,
+        "readonly": true
+      }
     },
-    "basic.username": {
-      "field": "username",
-      "ftype": "STRING",
+    "basic.utime": {
+      "field": "utime",
+      "ftype": "DATETIME",
       "group": "basic",
-      "index": "basic.username",
-      "label": "用户名",
+      "index": "basic.utime",
+      "label": "录入时间",
       "seqno": 2,
-      "width": 140,
-      "extra": { "required": true, "editable": "INSERT" }
+      "width": 160,
+      "extra": { "editable": "ALWAYS" }
     },
-    "basic.realname": {
-      "field": "realname",
+    "basic.state": {
+      "field": "state",
+      "ftype": "OPTIONAL",
+      "group": "basic",
+      "index": "basic.state",
+      "label": "状态",
+      "seqno": 3,
+      "width": 88,
+      "extra": {
+        "editable": "NEVER",
+        "options": [
+          { "uukey": "1", "label": "启用" },
+          { "uukey": "0", "label": "停用" }
+        ]
+      }
+    },
+    "basic.name": {
+      "field": "name",
       "ftype": "STRING",
       "group": "basic",
-      "index": "basic.realname",
-      "label": "姓名",
-      "seqno": 3,
+      "index": "basic.name",
+      "label": "员工姓名",
+      "seqno": 6,
       "width": 140,
       "extra": { "required": true, "editable": "ALWAYS" }
+    },
+    "basic.phone": {
+      "field": "phone",
+      "ftype": "STRING",
+      "group": "basic",
+      "index": "basic.phone",
+      "label": "手机号码",
+      "seqno": 7,
+      "width": 140,
+      "extra": { "editable": "ALWAYS" }
     },
     "basic.email": {
       "field": "email",
       "ftype": "STRING",
       "group": "basic",
       "index": "basic.email",
-      "label": "邮箱",
-      "seqno": 4,
+      "label": "电子邮箱",
+      "seqno": 8,
       "width": 180,
+      "extra": { "editable": "ALWAYS" }
+    },
+    "basic.remark": {
+      "field": "remark",
+      "ftype": "STRINGS",
+      "group": "basic",
+      "index": "basic.remark",
+      "label": "员工备注",
+      "seqno": 9,
+      "width": 200,
       "extra": { "editable": "ALWAYS" }
     },
     "basic.active": {
@@ -64,11 +105,11 @@
       "group": "basic",
       "index": "basic.active",
       "label": "启用",
-      "seqno": 5,
+      "seqno": 10,
       "width": 88,
       "extra": {
-        "required": true,
-        "editable": "ALWAYS",
+        "editable": "NEVER",
+        "implicit": true,
         "options": [
           { "uukey": "true", "label": "是" },
           { "uukey": "false", "label": "否" }
@@ -77,22 +118,13 @@
     },
     "basic.team_id": {
       "field": "team_id",
-      "ftype": "NUMERIC",
+      "ftype": "OPTIONAL",
       "group": "basic",
       "index": "basic.team_id",
-      "label": "团队",
-      "seqno": 6,
-      "width": 88,
-      "extra": { "editable": "ALWAYS", "precision": 0 }
-    },
-    "basic.password": {
-      "field": "password",
-      "ftype": "STRING",
-      "group": "basic",
-      "index": "basic.password",
-      "label": "密码",
-      "seqno": 7,
-      "extra": { "editable": "ALWAYS" }
+      "label": "所属团队",
+      "seqno": 2,
+      "width": 160,
+      "extra": { "required": true, "editable": "INSERT" }
     }
   },
   "clicks": {
@@ -102,11 +134,33 @@
       "action": "record.create",
       "seqno": 1
     },
-    "delete": {
-      "uukey": "delete",
-      "label": "删除",
-      "action": "record.delete",
+    "set_role": {
+      "uukey": "set_role",
+      "label": "设置角色",
+      "action": "user.set_role",
+      "group": "account",
       "seqno": 2
+    },
+    "set_pswd": {
+      "uukey": "set_pswd",
+      "label": "设置密码",
+      "action": "user.set_pswd",
+      "group": "account",
+      "seqno": 3
+    },
+    "enable": {
+      "uukey": "enable",
+      "label": "启用账号",
+      "action": "user.enable",
+      "group": "account",
+      "seqno": 4
+    },
+    "disable": {
+      "uukey": "disable",
+      "label": "停用账号",
+      "action": "user.disable",
+      "group": "account",
+      "seqno": 5
     }
   }
 }

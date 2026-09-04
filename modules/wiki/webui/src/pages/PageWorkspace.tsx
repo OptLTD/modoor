@@ -261,7 +261,7 @@ export function PageWorkspace() {
       onCreateProject={() => setCreateProjectOpen(true)}
       sidebarPagesHead={
         <div className="sidebar-head">
-          <strong>{t('wiki.pages')}</strong>
+          <span>{t('wiki.pages')}</span>
           <div className="sidebar-head-actions">
             <button
               type="button"

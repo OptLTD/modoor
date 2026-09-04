@@ -1,17 +1,28 @@
 {
   "default": {
     "uukey": "default",
-    "title": "用户列表",
+    "title": "员工列表",
     "fields": [
       "basic.uukey",
-      "basic.username",
-      "basic.realname",
+      "basic.name",
+      "basic.team_id",
+      "basic.utime",
+      "basic.phone",
       "basic.email",
-      "basic.active",
-      "basic.team_id"
+      "basic.remark",
+      "basic.state"
     ],
-    "sticky": ["basic.username"],
-    "clicks": ["create", "delete"],
+    "sticky": [
+      "basic.uukey",
+      "basic.name"
+    ],
+    "clicks": [
+      "create",
+      "set_role",
+      "set_pswd", 
+      "enable",
+      "disable"
+    ],
     "query": {},
     "extra": {}
   }

@@ -2,28 +2,41 @@
   <div class="table-wrap">
     <div class="toolbar">
       <div class="toolbar-left">
-        <button
-          v-for="c in createClicks"
-          :key="c.uukey"
-          type="button"
-          class="btn primary"
-          @click="onCreate"
-        >
-          {{ c.label || t('widget.create') }}
-        </button>
-        <button
-          v-if="deleteEnabled"
-          type="button"
-          class="btn danger"
-          :disabled="!selectedKeys.length"
-          @click="onDelete"
-        >
-          {{
-            selectedKeys.length
-              ? t('widget.deleteSelected', { n: selectedKeys.length })
-              : t('widget.delete')
-          }}
-        </button>
+        <template v-for="(cluster, i) in toolbarClusters" :key="cluster.key + '-' + i">
+          <div v-if="cluster.group" class="click-dropdown" :class="{ open: openGroup === cluster.key }">
+            <button
+              type="button"
+              class="btn"
+              :aria-expanded="openGroup === cluster.key"
+              @click.stop="toggleGroup(cluster.key)"
+            >
+              {{ clusterLabel(cluster) }}
+              <span class="click-caret" aria-hidden="true">▾</span>
+            </button>
+            <div v-if="openGroup === cluster.key" class="click-dropdown-menu" role="menu">
+              <button
+                v-for="c in cluster.clicks"
+                :key="c.uukey"
+                type="button"
+                role="menuitem"
+                :disabled="clickDisabled(c)"
+                @click.stop="onGroupItem(c)"
+              >
+                {{ clickLabel(c) }}
+              </button>
+            </div>
+          </div>
+          <button
+            v-else
+            type="button"
+            class="btn"
+            :class="clickClass(cluster.clicks[0])"
+            :disabled="clickDisabled(cluster.clicks[0])"
+            @click="onToolbarClick(cluster.clicks[0])"
+          >
+            {{ clickLabel(cluster.clicks[0]) }}
+          </button>
+        </template>
         <button
           v-if="activeFilterCount"
           type="button"
@@ -32,8 +45,9 @@
         >
           {{ t('widget.clearFilters', { n: activeFilterCount }) }}
         </button>
-        <button type="button" class="btn" @click="exportAll">{{ t('widget.export') }}</button>
+        <button v-if="!hideExport" type="button" class="btn" @click="exportAll">{{ t('widget.export') }}</button>
         <button
+          v-if="!hideExport"
           type="button"
           class="btn"
           :disabled="!selectedKeys.length"
@@ -125,11 +139,13 @@
                 maxWidth: actionWidth + 'px',
               }"
             >
-              {{ t('widget.actions') }}
-              <span
-                class="col-resize"
-                @mousedown.prevent.stop="startResize($event, ACTION_KEY, actionWidth, ACTION_MIN)"
-              />
+              <div class="hdr-box">
+                {{ t('widget.actions') }}
+                <span
+                  class="col-resize"
+                  @mousedown.prevent.stop="startResize($event, ACTION_KEY, actionWidth, actionResizeMin)"
+                />
+              </div>
             </th>
             <th
               v-for="f in displayFields"
@@ -147,6 +163,7 @@
                 left: isStickyField(f) ? stickyLeft(f) + 'px' : undefined,
               }"
             >
+              <div class="hdr-box">
               <div class="hdr-inner">
                 <span class="hdr-label truncate" :title="f.label || f.field">
                   {{ f.label || f.field }}
@@ -298,6 +315,7 @@
                 class="col-resize"
                 @mousedown.prevent.stop="startResize($event, f.field, fieldWidth(f))"
               />
+              </div>
             </th>
             <th class="list-fill" aria-hidden="true" />
           </tr>
@@ -339,7 +357,10 @@
                 maxWidth: actionWidth + 'px',
               }"
             >
-              <button type="button" class="link" @click="onEdit(row)">{{ t('widget.edit') }}</button>
+              <div class="row-actions">
+                <button type="button" class="link" @click="onEdit(row)">{{ t('widget.edit') }}</button>
+                <slot name="row-actions" :row="row" />
+              </div>
             </td>
             <td
               v-for="f in displayFields"
@@ -444,8 +465,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import type { SchemaTable } from '@modoor/hooks'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
+import type { SchemaClick, SchemaTable } from '@modoor/hooks'
 import { useI18n } from '@modoor/hooks'
 import { useSchemaTable } from './useSchemaTable'
 import FilterPanel from '../FilterPanel/FilterPanel.vue'
@@ -455,13 +476,19 @@ import SelectBox from '../SelectBox/SelectBox.vue'
 const props = defineProps<{
   table: SchemaTable
   using?: string
+  actionMin?: number
+  hideExport?: boolean
+}>()
+
+const emit = defineEmits<{
+  'toolbar-click': [payload: { click: SchemaClick; keys: string[]; rows: Record<string, unknown>[] }]
 }>()
 
 const { t } = useI18n()
 const api = useSchemaTable(props)
 const {
   CHECK_W,
-  ACTION_MIN,
+  actionResizeMin,
   ACTION_KEY,
   rows,
   count,
@@ -471,8 +498,7 @@ const {
   loading,
   selectedKeys,
   displayFields,
-  createClicks,
-  deleteEnabled,
+  toolbarClusters,
   actionWidth,
   allSelected,
   someSelected,
@@ -533,9 +559,81 @@ const {
 } = api
 
 const checkAllRef = ref<HTMLInputElement | null>(null)
+const openGroup = ref<string | null>(null)
 watch([allSelected, someSelected], () => {
   if (checkAllRef.value) checkAllRef.value.indeterminate = someSelected.value
 })
+
+function isCreateClick(c: SchemaClick | undefined) {
+  return !!c && (c.action === 'record.create' || c.uukey === 'create')
+}
+
+function isDeleteClick(c: SchemaClick | undefined) {
+  return !!c && (c.action === 'record.delete' || c.uukey === 'delete')
+}
+
+function clickClass(c: SchemaClick | undefined) {
+  if (isCreateClick(c)) return 'primary'
+  if (isDeleteClick(c)) return 'danger'
+  return ''
+}
+
+function clickDisabled(c: SchemaClick | undefined) {
+  if (!c || isCreateClick(c)) return false
+  return !selectedKeys.value.length
+}
+
+function clickLabel(c: SchemaClick | undefined) {
+  if (!c) return ''
+  if (isDeleteClick(c) && selectedKeys.value.length) {
+    return t('widget.deleteSelected', { n: selectedKeys.value.length })
+  }
+  if (isCreateClick(c)) return c.label || t('widget.create')
+  if (isDeleteClick(c)) return c.label || t('widget.delete')
+  return c.label || c.uukey
+}
+
+function clusterLabel(cluster: { clicks: SchemaClick[] }) {
+  const first = cluster.clicks[0] as (SchemaClick & { glabel?: string; extra?: { glabel?: string } }) | undefined
+  return first?.glabel || first?.extra?.glabel || t('widget.more')
+}
+
+function toggleGroup(key: string) {
+  openGroup.value = openGroup.value === key ? null : key
+}
+
+function closeGroup() {
+  openGroup.value = null
+}
+
+function onGroupItem(c: SchemaClick) {
+  closeGroup()
+  onToolbarClick(c)
+}
+
+function onDocPointer(e: Event) {
+  const el = e.target as HTMLElement | null
+  if (el?.closest?.('.click-dropdown')) return
+  closeGroup()
+}
+
+function onToolbarClick(c: SchemaClick | undefined) {
+  if (!c) return
+  if (isCreateClick(c)) {
+    onCreate()
+    return
+  }
+  if (isDeleteClick(c)) {
+    void onDelete()
+    return
+  }
+  const keys = [...selectedKeys.value]
+  const selected = rows.value.filter((r) => keys.includes(rowKey(r)))
+  emit('toolbar-click', { click: c, keys, rows: selected })
+}
+
+onMounted(() => document.addEventListener('pointerdown', onDocPointer))
+onUnmounted(() => document.removeEventListener('pointerdown', onDocPointer))
 
 defineExpose({ reload })
 </script>
@@ -543,6 +641,56 @@ defineExpose({ reload })
 <style scoped>
 .table-wrap {
   min-height: 0;
+}
+.click-dropdown {
+  position: relative;
+}
+.click-dropdown > .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.click-caret {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+.click-dropdown.open > .btn {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  background: #eef6f3;
+}
+.click-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 40;
+  min-width: 9.5rem;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+.click-dropdown-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+  color: inherit;
+}
+.click-dropdown-menu button:hover:not(:disabled) {
+  background: #eef6f3;
+  color: var(--accent);
+}
+.click-dropdown-menu button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 .table-body {
   display: flex;
@@ -649,19 +797,21 @@ defineExpose({ reload })
   background: var(--panel);
   white-space: nowrap;
   vertical-align: middle;
-  overflow: hidden;
   box-sizing: border-box;
+}
+.list-grid td {
+  overflow: hidden;
 }
 .list-grid thead th {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 3;
   background: #f8f4eb;
   font-weight: 600;
 }
 .list-grid .hdr-cell,
 .list-grid .sticky-action {
-  /* sticky th 作为 col-resize 定位上下文 */
+  overflow: visible;
 }
 .list-grid .num {
   text-align: right;
@@ -708,38 +858,57 @@ defineExpose({ reload })
   background: var(--panel);
   z-index: 2;
 }
-thead .sticky-col {
-  background: #f8f4eb;
+.list-grid tbody td.sticky-check {
   z-index: 4;
+}
+.list-grid tbody td.sticky-action {
+  z-index: 3;
+}
+.list-grid tbody td.sticky-field {
+  z-index: 2;
+}
+.list-grid thead th.sticky-col {
+  background: #f8f4eb;
+  z-index: 8;
+}
+.list-grid thead th.sticky-check {
+  z-index: 11;
+  padding: 0;
+  text-align: center;
+}
+.list-grid thead th.sticky-action {
+  z-index: 10;
+}
+.list-grid thead th.sticky-field {
+  z-index: 9;
 }
 .list-totals .sticky-col {
   background: #f8f4eb;
-  z-index: 9;
+  z-index: 12;
 }
 .sticky-check {
-  z-index: 6;
   text-align: center;
 }
-thead .sticky-check,
 .list-totals .sticky-check {
-  z-index: 10;
-  padding: 0px;
+  z-index: 14;
+  padding: 0;
   text-align: center;
 }
 .sticky-action {
-  z-index: 5;
   text-align: center;
 }
-thead .sticky-action,
+.row-actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+}
 .list-totals .sticky-action {
-  z-index: 10;
+  z-index: 13;
 }
-.sticky-field {
-  z-index: 3;
-}
-thead .sticky-field,
 .list-totals .sticky-field {
-  z-index: 9;
+  z-index: 12;
 }
 .sticky-edge {
   box-shadow: 2px 0 0 0 var(--line);
@@ -748,6 +917,12 @@ thead .sticky-field,
 .truncate {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.hdr-box {
+  position: relative;
+  margin: -8px -10px;
+  padding: 8px 10px;
+  min-height: 100%;
 }
 .hdr-inner {
   display: flex;
@@ -792,16 +967,18 @@ thead .sticky-field,
 
 .col-resize {
   position: absolute;
-  inset-y: 0;
-  right: -3px;
+  top: 0;
+  bottom: 0;
+  right: 0;
   width: 8px;
-  z-index: 6;
+  z-index: 20;
   cursor: col-resize;
   touch-action: none;
 }
+.list-grid thead th:hover .col-resize,
 .col-resize:hover,
 .col-resize:active {
-  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .filter-pop {
