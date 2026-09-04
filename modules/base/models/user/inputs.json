@@ -13,7 +13,9 @@
       "basic.email",
       "basic.remark"
     ],
-    "hidden": [],
+    "hidden": [
+      "basic.state"
+    ],
     "clicks": [],
     "extra": {}
   }
