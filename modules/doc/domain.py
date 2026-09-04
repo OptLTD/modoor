@@ -17,10 +17,12 @@ from modoor.core.ctx import Ctx
 from modoor.core.db import Base
 from modoor.core.errors import AppError
 from modoor.core.settings import get_settings
+from modoor.runtime.jobs import enqueue
+from modules.doc.extract import MAX_TEXT_CHARS as _MAX_TEXT_CHARS
+from modules.doc.jobs import register as register_extract_jobs
 from modules.doc.storage import BlobStore, get_blob_store
 
-_TEXT_EXTS = {".txt", ".md", ".markdown", ".csv", ".json", ".log", ".html", ".htm", ".xml"}
-_MAX_TEXT_CHARS = 500_000
+register_extract_jobs()
 
 
 def _now() -> datetime:
@@ -68,106 +70,6 @@ def _loads_tags(raw: str | None) -> list[str]:
     return [str(x).strip() for x in data if str(x).strip()]
 
 
-def extract_text(filename: str, data: bytes, mime: str) -> str:
-    """Best-effort plain text for search / AI. Preview still uses original bytes."""
-    ext = Path(filename).suffix.lower()
-    mime_l = (mime or "").lower()
-
-    if ext in _TEXT_EXTS or mime_l.startswith("text/") or mime_l in (
-        "application/json",
-        "application/xml",
-        "application/javascript",
-    ):
-        for enc in ("utf-8", "utf-8-sig", "gb18030", "latin-1"):
-            try:
-                return data.decode(enc)[:_MAX_TEXT_CHARS]
-            except UnicodeDecodeError:
-                continue
-        return data.decode("utf-8", errors="replace")[:_MAX_TEXT_CHARS]
-
-    if ext == ".docx" or mime_l.endswith(
-        "officedocument.wordprocessingml.document"
-    ):
-        try:
-            import zipfile
-            from io import BytesIO
-            from xml.etree import ElementTree as ET
-
-            with zipfile.ZipFile(BytesIO(data)) as zf:
-                xml = zf.read("word/document.xml")
-            root = ET.fromstring(xml)
-            texts = [
-                (node.text or "")
-                for node in root.iter()
-                if node.tag.endswith("}t") and node.text
-            ]
-            return "\n".join(texts)[:_MAX_TEXT_CHARS]
-        except Exception:  # noqa: BLE001
-            return ""
-
-    if ext in (".xlsx", ".xls") or "spreadsheetml" in mime_l:
-        try:
-            import zipfile
-            from io import BytesIO
-            from xml.etree import ElementTree as ET
-
-            if ext == ".xls":
-                return ""
-            parts: list[str] = []
-            with zipfile.ZipFile(BytesIO(data)) as zf:
-                shared: list[str] = []
-                if "xl/sharedStrings.xml" in zf.namelist():
-                    ss = ET.fromstring(zf.read("xl/sharedStrings.xml"))
-                    for si in ss:
-                        texts = [
-                            (t.text or "")
-                            for t in si.iter()
-                            if t.tag.endswith("}t")
-                        ]
-                        shared.append("".join(texts))
-                for name in zf.namelist():
-                    if not name.startswith("xl/worksheets/sheet") or not name.endswith(".xml"):
-                        continue
-                    sheet = ET.fromstring(zf.read(name))
-                    for c in sheet.iter():
-                        if not c.tag.endswith("}c"):
-                            continue
-                        v = next((ch for ch in list(c) if ch.tag.endswith("}v")), None)
-                        if v is None or v.text is None:
-                            continue
-                        if c.get("t") == "s":
-                            try:
-                                parts.append(shared[int(v.text)])
-                            except (ValueError, IndexError):
-                                parts.append(v.text)
-                        else:
-                            parts.append(v.text)
-            return "\n".join(parts)[:_MAX_TEXT_CHARS]
-        except Exception:  # noqa: BLE001
-            return ""
-
-    if ext == ".pptx" or "presentationml" in mime_l:
-        try:
-            import zipfile
-            from io import BytesIO
-            from xml.etree import ElementTree as ET
-
-            parts: list[str] = []
-            with zipfile.ZipFile(BytesIO(data)) as zf:
-                for name in sorted(zf.namelist()):
-                    if not name.startswith("ppt/slides/slide") or not name.endswith(".xml"):
-                        continue
-                    root = ET.fromstring(zf.read(name))
-                    for node in root.iter():
-                        if node.tag.endswith("}t") and node.text:
-                            parts.append(node.text)
-            return "\n".join(parts)[:_MAX_TEXT_CHARS]
-        except Exception:  # noqa: BLE001
-            return ""
-
-    return ""
-
-
 class DocAsset(Base):
     __tablename__ = "doc_assets"
 
@@ -182,6 +84,9 @@ class DocAsset(Base):
     name: Mapped[str] = mapped_column(String(1024), default="")  # object key
     tags: Mapped[str] = mapped_column(Text, default="[]")
     text: Mapped[str] = mapped_column(Text, default="")
+    text_status: Mapped[str] = mapped_column(String(16), default="pending")
+    text_method: Mapped[str] = mapped_column(String(64), default="")
+    text_error: Mapped[str] = mapped_column(Text, default="")
     note: Mapped[str] = mapped_column(Text, default="")
     created_by: Mapped[int] = mapped_column(Integer)
     updated_by: Mapped[int] = mapped_column(Integer)
@@ -209,6 +114,9 @@ def _asset_dict(row: DocAsset, *, include_text: bool = True, text_limit: int | N
         "created_at": row.created_at.isoformat() if row.created_at else None,
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
         "has_text": bool((row.text or "").strip()),
+        "text_status": row.text_status or "ready",
+        "text_method": row.text_method or "",
+        "text_error": row.text_error or "",
         "ext": Path(row.filename or "").suffix.lower().lstrip("."),
     }
     if include_text:
@@ -270,7 +178,7 @@ def create_asset(
     blob = data if data else (text or "").encode("utf-8")
     object_name = f"{ctx.tenant}/{asset_id}/{safe}"
     store.put(object_name, blob, content_type=mime)
-    extracted = text if text is not None else extract_text(safe, blob, mime)
+    provided = text is not None
     row = DocAsset(
         id=asset_id,
         tenant=ctx.tenant,
@@ -282,13 +190,18 @@ def create_asset(
         type=store.backend,
         name=object_name,
         tags=_dumps_tags(tags),
-        text=(extracted or "")[:_MAX_TEXT_CHARS],
+        text=(text or "")[:_MAX_TEXT_CHARS] if provided else "",
+        text_status="ready" if provided else "pending",
+        text_method="provided" if provided else "",
+        text_error="",
         note=(note or "").strip(),
         created_by=ctx.user_id,
         updated_by=ctx.user_id,
     )
     session.add(row)
     session.flush()
+    if not provided:
+        enqueue(session, kind="doc.extract", payload={"asset_id": asset_id})
     return _asset_dict(row)
 
 
@@ -378,6 +291,61 @@ def get_asset_bytes(session: Session, ctx: Ctx, *, asset_id: str) -> tuple[DocAs
     return row, data
 
 
+def get_asset_preview(
+    session: Session,
+    ctx: Ctx,
+    *,
+    asset_id: str,
+    sheet: int = 0,
+    page: int = 1,
+    filters: dict[str, Any] | None = None,
+    facets: bool = False,
+) -> dict[str, Any]:
+    row, data = get_asset_bytes(session, ctx, asset_id=asset_id)
+    from modules.doc.extract import preview_excel
+
+    return {
+        "id": row.id,
+        "filename": row.filename,
+        **preview_excel(
+            row.filename,
+            data,
+            row.mime_type,
+            sheet=sheet,
+            page=page,
+            filters=filters,
+            facets=facets,
+        ),
+    }
+
+
+def apply_extract_job(session: Session, payload: dict[str, Any]) -> None:
+    asset_id = str((payload or {}).get("asset_id") or "")
+    if not asset_id:
+        return
+    row = session.get(DocAsset, asset_id)
+    if row is None:
+        return
+    row.text_status = "running"
+    session.flush()
+    try:
+        if not row.name:
+            raise AppError("not_found", "asset has no stored blob")
+        data = _store_for_row(row).get(row.name)
+        from modules.doc.extract import extract_bytes
+
+        result = extract_bytes(row.filename, data, row.mime_type)
+        row.text = (result.text or "")[:_MAX_TEXT_CHARS]
+        row.text_method = result.method or ""
+        row.text_error = result.error or ""
+        row.text_status = "failed" if result.error and not (result.text or "").strip() else "ready"
+        row.updated_at = _now()
+    except Exception as exc:  # noqa: BLE001
+        row.text_status = "failed"
+        row.text_error = str(exc)[:2000]
+        row.updated_at = _now()
+
+
 def update_asset(
     session: Session,
     ctx: Ctx,
@@ -402,6 +370,9 @@ def update_asset(
         row.note = note.strip()
     if text is not None:
         row.text = text[:_MAX_TEXT_CHARS]
+        row.text_status = "ready"
+        row.text_method = "manual"
+        row.text_error = ""
     row.updated_by = ctx.user_id
     row.updated_at = _now()
     session.flush()

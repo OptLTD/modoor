@@ -4,26 +4,27 @@ import pytest
 
 from modoor.platform.bootstrap import bootstrap
 from modoor.core.ctx import Ctx
-from modoor.core.db import init_db, session_scope
+from modoor.core.db import session_scope
 from modoor.core.errors import AppError
 from modoor.platform.module_state import list_modules, set_module_enabled, sync_discovered_modules
 from modoor.core.settings import get_settings
 from modules.base import domain as base_domain
 from modules.wiki import domain as wiki_domain
+from tests.conftest import configure_test_db
 
 
 @pytest.fixture(autouse=True)
-def _env(tmp_path, monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'auth.db'}")
-    monkeypatch.setenv("MODOOR_API_KEY", "test-key")
-    monkeypatch.setenv("MODOOR_TENANT", "demo")
+def _env(monkeypatch):
     monkeypatch.delenv("MODOOR_USER_ID", raising=False)
     monkeypatch.delenv("MODOOR_TEAM_ID", raising=False)
-    monkeypatch.setenv("MODOOR_CONFIRM_SECRET", "secret")
-    monkeypatch.setenv("MODOOR_ADMIN_USERNAME", "admin")
-    monkeypatch.setenv("MODOOR_ADMIN_PASSWORD", "admin123")
-    get_settings.cache_clear()
-    init_db(get_settings())
+    configure_test_db(
+        monkeypatch,
+        MODOOR_API_KEY="test-key",
+        MODOOR_TENANT="demo",
+        MODOOR_CONFIRM_SECRET="secret",
+        MODOOR_ADMIN_USERNAME="admin",
+        MODOOR_ADMIN_PASSWORD="admin123",
+    )
     yield
     get_settings.cache_clear()
 

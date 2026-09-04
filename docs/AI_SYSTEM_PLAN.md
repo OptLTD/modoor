@@ -82,7 +82,7 @@ MCP 暴露策略（已决）：
 - [x] 最少一组 MCP Tools + 1 份 Skill（`sale.create_order` / `sale.confirm_order` + 对应 Skill）
 - [ ] 用至少一种**外部** MCP 客户端打通（见 `docs/INTEGRATION.md`）
 - [x] 确认流协议可演示（即使确认 UI 在客户端侧）；`confirm_order` 为高风险
-- [x] 自有最小持久化（SQLAlchemy；SQLite）；每次 call 带齐 ctx
+- [x] 自有最小持久化（SQLAlchemy；PostgreSQL）；每次 call 带齐 ctx
 - [x] API Key 鉴权并映射到 `tenant` + `user_id`
 
 ### Phase 1 — 能力层 MVP
@@ -142,7 +142,7 @@ MCP 暴露策略（已决）：
 | MCP 形态 | **A. 单聚合 MCP Server**（已决） | 一个 endpoint，聚合各模块 tools |
 | 鉴权 | **API Key → ctx**（Phase 0 已决） | Key 映射到 `tenant` + `user_id`（及可选 `team_id`）；OAuth/用户委派后置 |
 | ORM | **SQLAlchemy 2.x**（已决） | 自有栈 |
-| 数据库 | PostgreSQL（生产/联调）；可用 SQLite 本地冒烟 | |
+| 数据库 | **PostgreSQL**（已决；本仓不支持 SQLite） | |
 | 编排 / Chat | — | **当前不做** |
 | 移动 | — | **当前不做**；契约可预留 |
 

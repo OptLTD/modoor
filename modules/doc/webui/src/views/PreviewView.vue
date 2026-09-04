@@ -5,7 +5,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from '@modoor/hooks'
 import { getAsset, type DocAsset } from '../api/doc'
@@ -15,24 +15,43 @@ const { t } = useI18n()
 const route = useRoute()
 const asset = ref<DocAsset | null>(null)
 const error = ref('')
+let timer: ReturnType<typeof setInterval> | null = null
 
 function assetId() {
   return decodeURIComponent(String(route.params.id || ''))
 }
 
 async function load() {
+  const id = assetId()
   error.value = ''
-  asset.value = null
   try {
-    const res = await getAsset(assetId())
+    const res = await getAsset(id)
+    if (assetId() !== id) return
     asset.value = res.asset
   } catch (e) {
+    if (assetId() !== id) return
     error.value = e instanceof Error ? e.message : String(e)
+    asset.value = null
   }
 }
 
-watch(() => route.params.id, load)
-onMounted(load)
+watch(
+  () => route.params.id,
+  () => {
+    asset.value = null
+    void load()
+  },
+)
+onMounted(() => {
+  void load()
+  timer = setInterval(() => {
+    const status = asset.value?.text_status
+    if (status === 'pending' || status === 'running') void load()
+  }, 1500)
+})
+onUnmounted(() => {
+  if (timer != null) clearInterval(timer)
+})
 </script>
 
 <style scoped>

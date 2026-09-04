@@ -20,8 +20,7 @@ from modoor.platform.loader import register_module_web
 from modoor.platform import services as service_registry
 from modoor.platform.tickets import issue_ticket, verify_ticket
 from modoor.core.settings import get_settings
-from modoor.web.frontend_proxy import parse_webui_proxies, register_frontend_proxies
-from modoor.web.frontend_static import register_frontend_statics
+from modoor.web.frontend import register_frontends
 from modoor.web.kit import get_kit
 from modoor.web.nav import (
     clear_ui_cache,
@@ -39,7 +38,13 @@ async def lifespan(_app: FastAPI):
     clear_ui_cache()
     init_db()
     bootstrap()
-    yield
+    from modoor.runtime.worker import start_inprocess, stop_inprocess
+
+    start_inprocess()
+    try:
+        yield
+    finally:
+        stop_inprocess()
 
 
 app = FastAPI(title="Modoor Console", version="0.1.0", lifespan=lifespan)
@@ -74,12 +79,7 @@ _LOGO_PNG = Path(__file__).resolve().parents[2] / "logo.png"
 
 kit = get_kit()
 register_module_web(app, kit)
-_proxy_raw = get_settings().modoor_webui_proxies
-register_frontend_proxies(app, _proxy_raw)
-register_frontend_statics(
-    app,
-    skip_prefixes={prefix for prefix, _ in parse_webui_proxies(_proxy_raw)},
-)
+register_frontends(app)
 
 
 def _safe_next(raw: str | None, fallback: str) -> str:

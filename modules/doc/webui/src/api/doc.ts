@@ -13,6 +13,9 @@ export type DocAsset = {
   text?: string
   has_text?: boolean
   text_truncated?: boolean
+  text_status?: 'pending' | 'running' | 'ready' | 'failed'
+  text_method?: string
+  text_error?: string
   ext?: string
   created_at?: string | null
   updated_at?: string | null
@@ -29,8 +32,60 @@ export async function listAssets(params?: { q?: string; tag?: string; limit?: nu
   return get<{ items: DocAsset[]; count: number }>(`/api/doc/assets${suffix}`)
 }
 
-export async function getAsset(id: string) {
-  return get<{ asset: DocAsset }>(`/api/doc/assets/${encodeURIComponent(id)}`)
+export async function getAsset(id: string, opts?: { full?: boolean }) {
+  const qs = opts?.full ? '?full=1' : ''
+  return get<{ asset: DocAsset }>(`/api/doc/assets/${encodeURIComponent(id)}${qs}`)
+}
+
+export type ExcelFilterValue = {
+  value: string
+  count: number
+}
+
+export type ExcelFilter = {
+  col: number
+  name: string
+  values: ExcelFilterValue[]
+}
+
+export type ExcelPreview = {
+  id: string
+  filename: string
+  kind: string
+  sheet_names: string[]
+  sheet: number
+  sheet_name: string
+  header: string[]
+  rows: string[][]
+  row_numbers: number[]
+  page: number
+  page_size: number
+  start_row: number
+  has_prev: boolean
+  has_next: boolean
+  filters?: ExcelFilter[]
+}
+
+export async function getAssetPreview(
+  id: string,
+  opts?: {
+    sheet?: number
+    page?: number
+    filters?: Record<string, string[]>
+    facets?: boolean
+  },
+) {
+  const qs = new URLSearchParams()
+  qs.set('sheet', String(opts?.sheet ?? 0))
+  qs.set('page', String(opts?.page ?? 1))
+  if (opts?.facets) qs.set('facets', '1')
+  const filters = opts?.filters
+  if (filters && Object.keys(filters).length) {
+    qs.set('filters', JSON.stringify(filters))
+  }
+  return get<ExcelPreview>(
+    `/api/doc/assets/${encodeURIComponent(id)}/preview?${qs}`,
+  )
 }
 
 export async function listTags() {

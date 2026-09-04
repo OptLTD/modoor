@@ -4,9 +4,9 @@ import json
 
 import pytest
 
-from modoor.core.db import init_db
 from modoor.core.settings import get_settings
 from modoor.platform.bootstrap import bootstrap
+from tests.conftest import configure_test_db
 from modules.wiki.tools import (
     create_page,
     delete_page,
@@ -19,13 +19,13 @@ from modules.wiki.tools import (
 
 
 @pytest.fixture(autouse=True)
-def _env(tmp_path, monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'wiki.db'}")
-    monkeypatch.setenv("MODOOR_API_KEY", "test-key")
-    monkeypatch.setenv("MODOOR_TENANT", "t1")
-    monkeypatch.setenv("MODOOR_CONFIRM_SECRET", "secret")
-    get_settings.cache_clear()
-    init_db(get_settings())
+def _env(monkeypatch):
+    configure_test_db(
+        monkeypatch,
+        MODOOR_API_KEY="test-key",
+        MODOOR_TENANT="t1",
+        MODOOR_CONFIRM_SECRET="secret",
+    )
     bootstrap(get_settings())
     yield
     get_settings.cache_clear()

@@ -26,6 +26,8 @@ confirmations:
 2. **List**: `doc.list_assets(tag?, limit?)` — recent assets.
 3. **Meta**: `doc.get_asset(asset_id)` — metadata + truncated text.
 4. **Read for AI**: `doc.get_asset_text(asset_id)` — full extracted text.
+   - Upload is async: if `text_status` is `pending` / `running`, wait and retry.
+   - If `text_status` is `failed`, say extraction failed (`text_error`); do not invent contents.
 5. **Update**: `doc.update_asset(asset_id, title?, tags?, note?)`.
 6. **Delete** (high risk):
    - Call `doc.delete_asset(asset_id)` → `needs_confirmation`.
@@ -35,5 +37,5 @@ confirmations:
 
 - Identify assets by **id** only.
 - Prefer `get_asset_text` when answering from document contents.
-- Do not invent file contents if text is empty (binary-only / no extractor).
+- If `text_status` is pending/running, wait; if failed or empty, do not invent file contents.
 - Do not delete without confirmation.

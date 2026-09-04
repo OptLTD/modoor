@@ -22,7 +22,9 @@ modoor/
 
 ```bash
 cd /path/to/modoor-app
-make dev                 # 建表 + 初始化 + 启动 Web：http://127.0.0.1:8765
+cp .env.example .env     # DATABASE_URL 指向已有 Postgres
+make setup
+make dev base            # 建表 + 初始化 + 启动 Web：http://127.0.0.1:8765
 # 默认账号 admin / admin123
 # make mcp               # MCP（stdio）
 # make test
@@ -44,7 +46,7 @@ modoor-mcp
 # 或: python -m modoor
 ```
 
-本地默认 SQLite（`DATABASE_URL=sqlite:///./modoor.db`）。
+本地只用 PostgreSQL：把 `DATABASE_URL` 指到已有实例（本仓不自带数据库进程）。没有 Postgres 时才用 `make db`。测试走独立库 `modoor_test`，不会清空开发库。
 
 ## Cursor 接入
 
@@ -60,7 +62,7 @@ modoor-mcp
         "MODOOR_TENANT": "demo",
         "MODOOR_USER_ID": "user-1",
         "MODOOR_CONFIRM_SECRET": "dev-confirm-secret-change-me",
-        "DATABASE_URL": "sqlite:////path/to/modoor-app/modoor.db"
+        "DATABASE_URL": "postgresql+psycopg://modoor:modoor@127.0.0.1:5432/modoor"
       }
     }
   }

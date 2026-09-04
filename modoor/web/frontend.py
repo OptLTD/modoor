@@ -1,16 +1,23 @@
-"""Reverse-proxy module Vite/preview servers under /web/<module> (same API port)."""
+"""Mount module frontends under /web/<module> — Vite proxy in dev, dist static otherwise."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
+from pathlib import Path
 from typing import Iterable
 
 import httpx
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import Response as StarletteResponse
+from starlette.types import Scope
 
-from modoor.web.mount import WEBUI_MOUNT_PREFIX
+from modoor.core.settings import get_settings
+from modoor.web.mount import WEBUI_MOUNT_PREFIX, join_web_mount
+from modoor.web.nav import get_ui_catalog
 
 logger = logging.getLogger(__name__)
 
@@ -49,21 +56,30 @@ def parse_webui_proxies(raw: str) -> list[tuple[str, str]]:
     return out
 
 
+def register_frontends(app: FastAPI) -> list[str]:
+    """Dev proxy wins per prefix; remaining modules with webui/dist are served static."""
+    settings = get_settings()
+    proxies = parse_webui_proxies(settings.modoor_webui_proxies)
+    skip = {prefix for prefix, _ in proxies}
+    registered = _register_proxies(app, proxies)
+    registered.extend(_register_statics(app, skip_prefixes=skip))
+    return registered
+
+
 def _filter_request_headers(headers: Iterable[tuple[str, str]]) -> dict[str, str]:
     return {k: v for k, v in headers if k.lower() not in _HOP_BY_HOP}
 
 
-def register_frontend_proxies(app: FastAPI, proxies_raw: str) -> list[str]:
-    """Mount HTTP + WebSocket reverse proxies. Call after API routes are registered."""
+def _register_proxies(app: FastAPI, proxies: list[tuple[str, str]]) -> list[str]:
     registered: list[str] = []
-    for prefix, upstream in parse_webui_proxies(proxies_raw):
-        _mount_one(app, prefix, upstream)
+    for prefix, upstream in proxies:
+        _mount_proxy(app, prefix, upstream)
         registered.append(f"{prefix} → {upstream}")
         logger.info("frontend proxy %s → %s", prefix, upstream)
     return registered
 
 
-def _mount_one(app: FastAPI, prefix: str, upstream: str) -> None:
+def _mount_proxy(app: FastAPI, prefix: str, upstream: str) -> None:
     prefix = prefix.rstrip("/") or "/"
     upstream_host = httpx.URL(upstream).netloc
 
@@ -186,3 +202,57 @@ def _mount_one(app: FastAPI, prefix: str, upstream: str) -> None:
 
     app.add_api_websocket_route(f"{prefix}/{{full_path:path}}", proxy_ws)
     app.add_api_websocket_route(prefix, proxy_ws)
+
+
+class SPAStaticFiles(StaticFiles):
+    """Serve index.html for client-side routes under the mount."""
+
+    async def get_response(self, path: str, scope: Scope) -> StarletteResponse:
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code != 404:
+                raise
+            return await super().get_response("index.html", scope)
+
+
+def _module_ids_from_env(raw: str) -> list[str] | None:
+    """MODOOR_WEBUI_STATIC_MODULES=base,wiki → filter; empty → all with dist."""
+    parts = [p.strip() for p in (raw or "").split(",") if p.strip()]
+    return parts or None
+
+
+def _register_statics(
+    app: FastAPI,
+    *,
+    skip_prefixes: set[str],
+) -> list[str]:
+    settings = get_settings()
+    root = Path(settings.modoor_modules_root)
+    catalog = get_ui_catalog()
+    wanted = _module_ids_from_env(
+        getattr(settings, "modoor_webui_static_modules", "") or ""
+    )
+    registered: list[str] = []
+
+    for mid, meta in catalog.items():
+        if wanted is not None and mid not in wanted:
+            continue
+        base = (meta.get("base") or f"/{mid}").rstrip("/") or f"/{mid}"
+        public = join_web_mount(base).rstrip("/")
+        if public in skip_prefixes or any(public.startswith(f"{p}/") for p in skip_prefixes):
+            continue
+        dist = root / mid / "webui" / "dist"
+        if not dist.is_dir() or not (dist / "index.html").is_file():
+            continue
+        app.mount(
+            public,
+            SPAStaticFiles(directory=str(dist), html=True),
+            name=f"webui-static-{mid}",
+        )
+        registered.append(f"{public} → {dist}")
+        logger.info("frontend static %s → %s", public, dist)
+
+    if registered:
+        logger.info("frontend static mount root %s (%d apps)", WEBUI_MOUNT_PREFIX, len(registered))
+    return registered

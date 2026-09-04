@@ -30,7 +30,10 @@ class Settings(BaseSettings):
         alias="MODOOR_CONFIRM_SECRET",
     )
     modoor_confirm_ttl_seconds: int = Field(default=600, alias="MODOOR_CONFIRM_TTL_SECONDS")
-    database_url: str = Field(default="sqlite:///./modoor.db", alias="DATABASE_URL")
+    database_url: str = Field(
+        default="postgresql+psycopg://modoor:modoor@127.0.0.1:5432/modoor",
+        alias="DATABASE_URL",
+    )
     modoor_modules_root: Path = Field(
         default_factory=_default_modules_root,
         alias="MODOOR_MODULES_ROOT",
@@ -84,6 +87,22 @@ class Settings(BaseSettings):
     modoor_admin_password: str = Field(
         default="admin123", alias="MODOOR_ADMIN_PASSWORD"
     )
+    modoor_jobs_inprocess: bool = Field(default=True, alias="MODOOR_JOBS_INPROCESS")
+    modoor_jobs_poll_seconds: float = Field(default=0.5, alias="MODOOR_JOBS_POLL_SECONDS")
+    modoor_doc_ocr: bool = Field(default=True, alias="MODOOR_DOC_OCR")
+    modoor_doc_ocr_max_pages: int = Field(default=20, alias="MODOOR_DOC_OCR_MAX_PAGES")
+
+    @field_validator("database_url")
+    @classmethod
+    def _postgres_only(cls, v: str) -> str:
+        url = (v or "").strip()
+        if not url.startswith("postgresql"):
+            raise ValueError(
+                "DATABASE_URL must be PostgreSQL "
+                "(e.g. postgresql+psycopg://modoor:modoor@127.0.0.1:5432/modoor). "
+                "SQLite is not supported."
+            )
+        return url
 
     @field_validator("modoor_user_id", "modoor_team_id", mode="before")
     @classmethod

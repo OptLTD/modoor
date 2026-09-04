@@ -6,22 +6,23 @@ import pytest
 
 from modoor.runtime.auth import resolve_ctx
 from modoor.runtime.confirmation import issue_confirmation_token, verify_confirmation_token
-from modoor.core.db import init_db, session_scope
+from modoor.core.db import session_scope
 from modoor.core.errors import AppError
 from modoor.core.settings import get_settings
 from modoor.platform.bootstrap import bootstrap
 from modules.sale import domain as sale_domain
 from modules.sale.tools import confirm_order, create_order, get_order
+from tests.conftest import configure_test_db
 
 
 @pytest.fixture(autouse=True)
-def _env(tmp_path, monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 't.db'}")
-    monkeypatch.setenv("MODOOR_API_KEY", "test-key")
-    monkeypatch.setenv("MODOOR_TENANT", "t1")
-    monkeypatch.setenv("MODOOR_CONFIRM_SECRET", "secret")
-    get_settings.cache_clear()
-    init_db(get_settings())
+def _env(monkeypatch):
+    configure_test_db(
+        monkeypatch,
+        MODOOR_API_KEY="test-key",
+        MODOOR_TENANT="t1",
+        MODOOR_CONFIRM_SECRET="secret",
+    )
     bootstrap(get_settings())
     yield
     get_settings.cache_clear()

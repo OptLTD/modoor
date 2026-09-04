@@ -58,6 +58,8 @@ def get_asset_text(asset_id: str) -> str:
             "title": asset["title"],
             "filename": asset["filename"],
             "tags": asset["tags"],
+            "text_status": asset.get("text_status") or "ready",
+            "text_method": asset.get("text_method") or "",
             "text": asset.get("text") or "",
         }
 

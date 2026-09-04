@@ -28,8 +28,6 @@ def main() -> int:
             break
         except Exception as exc:  # noqa: BLE001
             last_err = exc
-            if url.startswith("sqlite"):
-                break
             time.sleep(1)
     else:
         print(f"ERROR: cannot connect to database: {url}", file=sys.stderr)

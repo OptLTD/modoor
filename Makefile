@@ -1,4 +1,4 @@
-.PHONY: help setup build dev preview mcp web webui api test smoke external base wiki sale skill
+.PHONY: help setup db build dev preview mcp web webui api test smoke external base wiki sale skill doc worker
 
 ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 PYTHON := $(ROOT)/.venv/bin/python
@@ -6,7 +6,7 @@ PIP := $(ROOT)/.venv/bin/pip
 VENV := $(ROOT)/.venv
 
 # Extra goals after command → module ids
-DEV_MODULES := $(filter-out dev setup,$(MAKECMDGOALS))
+DEV_MODULES := $(filter-out dev setup db worker,$(MAKECMDGOALS))
 BUILD_MODULES := $(filter-out build setup,$(MAKECMDGOALS))
 PREVIEW_MODULES := $(filter-out preview setup,$(MAKECMDGOALS))
 
@@ -19,6 +19,8 @@ export PIP_DISABLE_PIP_VERSION_CHECK := 1
 help: ## Show targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-10s %s\n", $$1, $$2}'
 	@echo ""
+	@echo "  make db                      # 可选：没有本机 Postgres 时才用 compose 起一份"
+	@echo "  make worker                  # job queue (optional; API 默认带进程内 worker)"
 	@echo "  make build base wiki"
 	@echo "  make preview                 # mount dist on API (no vite)"
 	@echo "  make preview base"
@@ -41,6 +43,10 @@ setup: ## Create venv and install package (skips pip if up to date)
 	fi
 	@test -f .env || cp .env.example .env
 	@echo "setup ok"
+
+db: ## Optional: start Compose Postgres if you do not already have one
+	docker compose up -d --wait db
+	@echo "Only needed when DATABASE_URL does not already point at a running Postgres."
 
 build: setup ## Build module dist: make build base [wiki] [sale] [skill]
 	@if [ -z "$(BUILD_MODULES)" ]; then \
@@ -71,7 +77,7 @@ preview: setup ## Preview dist (no build): make preview [modules]; BUILD=1 to re
 	@BUILD="$(BUILD)" exec "$(ROOT)/scripts/run_preview.sh" $(PREVIEW_MODULES)
 
 # Swallow module names used as: make build|dev|preview base wiki
-base wiki sale skill:
+base wiki sale skill doc:
 	@:
 
 web: ## Alias: make web base … → make dev …
@@ -99,7 +105,11 @@ external: setup ## Start external Board+Pulse (Modoor registry must be up)
 mcp: setup ## Run MCP server (stdio; loads .env)
 	@set -a && source .env && set +a && exec $(PYTHON) -m modoor.runtime.mcp_server
 
-test: setup ## Run pytest
+worker: setup ## Run job worker (doc extract queue)
+	@$(PYTHON) scripts/ensure_db.py
+	@set -a && source .env && set +a && exec $(PYTHON) -m modoor.runtime.worker
+
+test: setup ## Run pytest (needs Postgres on DATABASE_URL)
 	@$(PYTHON) -m pytest -q
 
 smoke: setup ## Run sale smoke flow

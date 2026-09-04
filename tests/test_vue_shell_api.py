@@ -3,28 +3,29 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from modoor.core.db import init_db
 from modoor.core.settings import get_settings
 from modoor.platform.bootstrap import bootstrap
 from modoor.web.app import app
 from modoor.web.nav import clear_ui_cache
 from modoor.engine.registry import clear_bundle_cache
 from modoor.engine.service import reload_engine_caches
+from tests.conftest import configure_test_db
 
 
 @pytest.fixture()
-def client(tmp_path, monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'vue.db'}")
-    monkeypatch.setenv("MODOOR_API_KEY", "test-key")
-    monkeypatch.setenv("MODOOR_TENANT", "demo")
-    monkeypatch.setenv("MODOOR_CONFIRM_SECRET", "secret")
-    monkeypatch.setenv("MODOOR_ADMIN_USERNAME", "admin")
-    monkeypatch.setenv("MODOOR_ADMIN_PASSWORD", "admin123")
+def client(monkeypatch):
+    configure_test_db(
+        monkeypatch,
+        MODOOR_API_KEY="test-key",
+        MODOOR_TENANT="demo",
+        MODOOR_CONFIRM_SECRET="secret",
+        MODOOR_ADMIN_USERNAME="admin",
+        MODOOR_ADMIN_PASSWORD="admin123",
+    )
     get_settings.cache_clear()
     clear_ui_cache()
     clear_bundle_cache()
     reload_engine_caches()
-    init_db(get_settings())
     bootstrap()
     with TestClient(app) as c:
         yield c

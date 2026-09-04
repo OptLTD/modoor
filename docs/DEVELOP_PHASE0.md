@@ -15,7 +15,7 @@
 | 语言 | Python 3.11+ |
 | MCP | FastMCP / `mcp` SDK，stdio（Cursor 本地） |
 | ORM | SQLAlchemy 2.x |
-| DB | `DATABASE_URL`；默认 SQLite |
+| DB | PostgreSQL（`DATABASE_URL` 指向已有实例） |
 | 鉴权 | 环境变量 API Key → ctx |
 
 ## ctx

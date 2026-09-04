@@ -3,28 +3,29 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from modoor.core.db import init_db, session_scope
+from modoor.core.db import session_scope
 from modoor.core.settings import get_settings
 from modoor.engine.registry import clear_bundle_cache
 from modoor.engine.service import reload_engine_caches
 from modoor.web.app import app
 from modules.sale import domain as sale_domain
 from modoor.core.ctx import Ctx
+from tests.conftest import configure_test_db
 
 
 @pytest.fixture()
-def client(tmp_path, monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'engine.db'}")
-    monkeypatch.setenv("MODOOR_API_KEY", "test-key")
-    monkeypatch.setenv("MODOOR_TENANT", "demo")
-    monkeypatch.setenv("MODOOR_CONFIRM_SECRET", "secret")
-    monkeypatch.setenv("MODOOR_ADMIN_USERNAME", "admin")
-    monkeypatch.setenv("MODOOR_ADMIN_PASSWORD", "admin123")
+def client(monkeypatch):
+    configure_test_db(
+        monkeypatch,
+        MODOOR_API_KEY="test-key",
+        MODOOR_TENANT="demo",
+        MODOOR_CONFIRM_SECRET="secret",
+        MODOOR_ADMIN_USERNAME="admin",
+        MODOOR_ADMIN_PASSWORD="admin123",
+    )
     get_settings.cache_clear()
     clear_bundle_cache()
     reload_engine_caches()
-    init_db(get_settings())
-    # bootstrap admin via app lifespan-ish
     from modoor.platform.bootstrap import bootstrap
 
     bootstrap()

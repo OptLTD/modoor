@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-import tempfile
 from pathlib import Path
 
 # Ensure package root on path when run as script
@@ -22,18 +21,19 @@ from modoor.runtime.confirmation import (  # noqa: E402
 from modoor.core.db import init_db, session_scope  # noqa: E402
 from modules.sale import domain as sale_domain  # noqa: E402
 from modoor.core.settings import Settings, get_settings  # noqa: E402
+from tests.conftest import ensure_database, test_database_url  # noqa: E402
 
 
 def main() -> None:
-    db_path = tempfile.NamedTemporaryFile(suffix=".db", delete=False).name
-    os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
+    os.environ["DATABASE_URL"] = test_database_url()
     os.environ.setdefault("MODOOR_API_KEY", "dev-key-change-me")
     os.environ.setdefault("MODOOR_TENANT", "demo")
-        os.environ.setdefault("MODOOR_CONFIRM_SECRET", "dev-confirm-secret-change-me")
+    os.environ.setdefault("MODOOR_CONFIRM_SECRET", "dev-confirm-secret-change-me")
     get_settings.cache_clear()
+    ensure_database(os.environ["DATABASE_URL"])
 
     settings = Settings()
-    init_db(settings)
+    init_db(settings, recreate=True)
     ctx = resolve_ctx(settings)
 
     with session_scope() as session:
@@ -88,7 +88,6 @@ def main() -> None:
         )
 
     print(json.dumps({"ok": True, "order_id": order_id, "state": "confirmed"}, indent=2))
-    Path(db_path).unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

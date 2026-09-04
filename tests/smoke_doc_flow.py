@@ -15,23 +15,27 @@ from modoor.core.errors import AppError  # noqa: E402
 from modoor.core.settings import Settings, get_settings  # noqa: E402
 from modoor.platform.bootstrap import bootstrap  # noqa: E402
 from modoor.runtime.auth import resolve_ctx  # noqa: E402
+from modoor.runtime.jobs import run_pending  # noqa: E402
 from modules.doc import domain as doc_domain  # noqa: E402
 from modules.doc.storage import get_blob_store  # noqa: E402
+from tests.conftest import ensure_database, test_database_url  # noqa: E402
 
 
 def main() -> None:
-    db_path = tempfile.NamedTemporaryFile(suffix=".db", delete=False).name
     doc_root = tempfile.mkdtemp(prefix="modoor-doc-")
-    os.environ["DATABASE_URL"] = f"sqlite:///{db_path}"
+    os.environ["DATABASE_URL"] = test_database_url()
     os.environ["MODOOR_DOC_STORAGE"] = "local"
     os.environ["MODOOR_DOC_LOCAL_ROOT"] = doc_root
+    os.environ["MODOOR_JOBS_INPROCESS"] = "0"
+    os.environ["MODOOR_DOC_OCR"] = "0"
     os.environ.setdefault("MODOOR_API_KEY", "dev-key-change-me")
     os.environ.setdefault("MODOOR_TENANT", "demo")
     os.environ.setdefault("MODOOR_CONFIRM_SECRET", "dev-confirm-secret-change-me")
     get_settings.cache_clear()
+    ensure_database(os.environ["DATABASE_URL"])
 
     settings = Settings()
-    init_db(settings)
+    init_db(settings, recreate=True)
     bootstrap()
     ctx = resolve_ctx(settings)
 
@@ -57,7 +61,7 @@ def main() -> None:
             tags=["smoke", "txt"],
         )
         assert txt["id"]
-        assert "hello" in (txt.get("text") or "")
+        assert txt.get("text_status") == "pending"
 
         png = doc_domain.create_asset(
             session,
@@ -103,6 +107,15 @@ def main() -> None:
             tags=["smoke", "docx"],
             mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
+
+    run_pending(limit=20)
+
+    with session_scope() as session:
+        txt = doc_domain.get_asset(session, ctx, asset_id=txt["id"])
+        assert txt.get("text_status") == "ready"
+        assert "hello" in (txt.get("text") or "")
+
+        docx = doc_domain.get_asset(session, ctx, asset_id=docx["id"])
         assert "docx hello" in (docx.get("text") or "")
 
         found = doc_domain.list_assets(session, ctx, q="warehouse", tag="txt")

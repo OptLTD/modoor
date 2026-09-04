@@ -11,6 +11,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from modoor.core.db import session_scope
+from modoor.core.errors import AppError
 from modoor.web.api_util import ctx_of, http_error, require_user
 from modules.doc import domain as doc_domain
 
@@ -76,13 +77,16 @@ def api_list_assets(
 
 
 @router.get("/assets/{asset_id}")
-def api_get_asset(request: Request, asset_id: str) -> dict[str, Any]:
+def api_get_asset(request: Request, asset_id: str, full: int = 0) -> dict[str, Any]:
     user = require_user(request)
     try:
         with session_scope() as session:
             return {
                 "asset": doc_domain.get_asset(
-                    session, ctx_of(user), asset_id=asset_id, text_limit=20_000
+                    session,
+                    ctx_of(user),
+                    asset_id=asset_id,
+                    text_limit=None if full else 20_000,
                 )
             }
     except Exception as exc:  # noqa: BLE001
@@ -105,6 +109,40 @@ def api_get_content(request: Request, asset_id: str, download: int = 0) -> Respo
             "Cache-Control": "private, max-age=60",
         }
         return Response(content=data, media_type=mime_type, headers=headers)
+    except Exception as exc:  # noqa: BLE001
+        raise http_error(exc) from exc
+
+
+@router.get("/assets/{asset_id}/preview")
+def api_get_preview(
+    request: Request,
+    asset_id: str,
+    sheet: int = 0,
+    page: int = 1,
+    filters: str | None = None,
+    facets: bool = False,
+) -> dict[str, Any]:
+    user = require_user(request)
+    parsed: dict[str, Any] | None = None
+    if filters:
+        try:
+            raw = json.loads(filters)
+        except json.JSONDecodeError as exc:
+            raise http_error(AppError("invalid_filters", "invalid filters")) from exc
+        if not isinstance(raw, dict):
+            raise http_error(AppError("invalid_filters", "invalid filters"))
+        parsed = raw
+    try:
+        with session_scope() as session:
+            return doc_domain.get_asset_preview(
+                session,
+                ctx_of(user),
+                asset_id=asset_id,
+                sheet=sheet,
+                page=page,
+                filters=parsed,
+                facets=facets,
+            )
     except Exception as exc:  # noqa: BLE001
         raise http_error(exc) from exc
 
