@@ -37,9 +37,11 @@ def test_vue_shell_apis(client: TestClient):
     assert logged.status_code == 200
     assert str(logged.json()["user"]["uukey"]).startswith("USER")
 
-    me = client.get("/api/auth/me")
+    me = client.get("/api/auth/profile")
     assert me.status_code == 200
     assert str(me.json()["user"]["uukey"]).startswith("USER")
+    assert isinstance(me.json()["user"].get("tenants"), list)
+    assert me.json()["user"]["tenants"]
 
     users = client.get("/api/base/users")
     assert users.status_code == 200

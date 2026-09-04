@@ -19,7 +19,9 @@ def resolve_ctx(settings: Settings, provided_api_key: str | None = None) -> Ctx:
             message="Invalid or missing API key",
         )
     with session_scope() as session:
-        ensured = ensure_tenant(session, settings.modoor_tenant)
+        ensured = ensure_tenant(
+            session, settings.modoor_tenant, tenant_id=settings.modoor_tenant_id
+        )
         tenant_id = int(ensured["tenant"]["id"])
         team_id = settings.modoor_team_id
         if team_id is None:

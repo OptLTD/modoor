@@ -258,12 +258,24 @@ def registry_catalog(
     base = modoor_base_url()
     tenant_id = getattr(user, "tenant", None)
     tenant_name = settings.modoor_tenant
-    if tenant_id is None:
+    if tenant_id is not None:
+        from modoor.core.db import session_scope
+        from modules.base.domain import SystemTenant
+
+        with session_scope() as session:
+            row = session.get(SystemTenant, int(tenant_id))
+            if row is not None:
+                tenant_name = row.name
+    else:
         from modoor.core.db import session_scope
         from modules.base.domain import ensure_tenant
 
         with session_scope() as session:
-            tenant_id = int(ensure_tenant(session, tenant_name)["tenant"]["id"])
+            tenant_id = int(
+                ensure_tenant(
+                    session, tenant_name, tenant_id=settings.modoor_tenant_id
+                )["tenant"]["id"]
+            )
     return {
         "tenant": {
             "id": tenant_id,

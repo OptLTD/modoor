@@ -552,19 +552,77 @@ def get_tenant(session: Session, tenant_id: int) -> SystemTenant:
     return row
 
 
-def ensure_tenant(session: Session, name: str) -> dict[str, Any]:
-    """Create tenant + same-named root team if missing. Idempotent."""
+def _sync_tenant_id_sequence(session: Session) -> None:
+    """Keep Postgres serial in sync after inserting an explicit tenant id."""
+    bind = session.get_bind()
+    if bind is None or bind.dialect.name != "postgresql":
+        return
+    from sqlalchemy import text
+
+    session.execute(
+        text(
+            "SELECT setval("
+            "pg_get_serial_sequence('base_tenant', 'id'), "
+            "COALESCE((SELECT MAX(id) FROM base_tenant), 1))"
+        )
+    )
+
+
+def ensure_tenant(
+    session: Session,
+    name: str,
+    *,
+    tenant_id: int | None = None,
+    create_head_team: bool = True,
+) -> dict[str, Any]:
+    """Create tenant + same-named head team if missing. Idempotent.
+
+    When ``tenant_id`` is set, look up / create by that id (name used on create).
+    If the tenant already exists, head-team creation is skipped when
+    ``create_head_team`` is False (bootstrap uses this to leave existing orgs alone).
+    """
     name = (name or "").strip()
     if not name:
         raise AppError("validation_error", "tenant name is required")
     created_tenant = False
     created_team = False
-    row = session.scalar(select(SystemTenant).where(SystemTenant.name == name))
-    if row is None:
-        row = SystemTenant(name=name)
-        session.add(row)
-        session.flush()
-        created_tenant = True
+    row: SystemTenant | None = None
+    if tenant_id is not None:
+        row = session.get(SystemTenant, tenant_id)
+        if row is None:
+            clash = session.scalar(select(SystemTenant).where(SystemTenant.name == name))
+            if clash is not None:
+                raise AppError(
+                    "conflict",
+                    f"Tenant name {name!r} already used by id={clash.id}",
+                )
+            row = SystemTenant(id=tenant_id, name=name)
+            session.add(row)
+            session.flush()
+            _sync_tenant_id_sequence(session)
+            created_tenant = True
+    else:
+        row = session.scalar(select(SystemTenant).where(SystemTenant.name == name))
+        if row is None:
+            row = SystemTenant(name=name)
+            session.add(row)
+            session.flush()
+            created_tenant = True
+
+    # Existing tenant: optionally skip ensuring head team (caller already has org).
+    if not created_tenant and not create_head_team:
+        root = session.scalar(
+            select(SystemTeam)
+            .where(SystemTeam.tenant == row.id, _head_parent_clause())
+            .order_by(SystemTeam.seqno, SystemTeam.id)
+        )
+        return {
+            "tenant": _tenant_dict(row),
+            "team": _team_dict(root) if root is not None else None,
+            "created_tenant": False,
+            "created_team": False,
+        }
+
     root = session.scalar(
         select(SystemTeam)
         .where(
@@ -1148,9 +1206,11 @@ def list_team_tree(session: Session, ctx: Ctx) -> dict[str, Any]:
             .order_by(SystemTeam.seqno, SystemTeam.name)
         )
     )
+    # Head team uses parent=0 (or None); normalize so the tree root is visible.
     by_parent: dict[int | None, list[SystemTeam]] = {}
     for r in rows:
-        by_parent.setdefault(r.parent, []).append(r)
+        key: int | None = None if _is_head_parent(r.parent) else int(r.parent)
+        by_parent.setdefault(key, []).append(r)
 
     def build(pid: int | None) -> list[dict[str, Any]]:
         return [
@@ -1386,7 +1446,12 @@ def set_role_nodes(
 
 
 def authenticate_user(
-    session: Session, *, tenant: int, username: str, password: str
+    session: Session,
+    *,
+    username: str,
+    password: str,
+    tenant: int | None = None,
+    allow_fallback: bool = False,
 ) -> SystemUser:
     username = username.strip().lower()
     login = _get_login_by_username(session, username)
@@ -1394,14 +1459,72 @@ def authenticate_user(
         raise AppError("permission_denied", "Invalid username or password")
     if not login.password or not verify_password(password, login.password):
         raise AppError("permission_denied", "Invalid username or password")
+    users = list(
+        session.scalars(
+            _user_query(session)
+            .where(SystemUser.base_id == login.id)
+            .order_by(SystemUser.id)
+        )
+    )
+    users = [u for u in users if u.active]
+    if not users:
+        raise AppError("permission_denied", "Invalid username or password")
+
+    chosen: SystemUser | None = None
+    if tenant is not None:
+        chosen = next((u for u in users if u.tenant == tenant), None)
+        if chosen is None and not allow_fallback:
+            raise AppError("permission_denied", "Invalid username or password")
+    if chosen is None and login.current is not None:
+        chosen = next((u for u in users if u.tenant == login.current), None)
+    if chosen is None:
+        chosen = users[0]
+    login.current = chosen.tenant
+    _touch(login)
+    return chosen
+
+
+def list_login_tenants(session: Session, *, base_id: int) -> list[dict[str, Any]]:
+    """Tenants where this login has an active user membership."""
+    users = list(
+        session.scalars(
+            select(SystemUser)
+            .where(SystemUser.base_id == base_id)
+            .order_by(SystemUser.tenant, SystemUser.id)
+        )
+    )
+    out: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    for user in users:
+        if not user.active:
+            continue
+        tid = int(user.tenant)
+        if tid in seen:
+            continue
+        tenant = session.get(SystemTenant, tid)
+        if tenant is None:
+            continue
+        seen.add(tid)
+        out.append({"id": tid, "name": tenant.name})
+    return out
+
+
+def switch_login_tenant(
+    session: Session, *, base_id: int, tenant_id: int
+) -> SystemUser:
+    """Switch login.current to another tenant membership; returns that tenant's user."""
     row = session.scalar(
         _user_query(session).where(
-            SystemUser.tenant == tenant,
-            SystemUser.base_id == login.id,
+            SystemUser.base_id == base_id,
+            SystemUser.tenant == tenant_id,
         )
     )
     if row is None or not row.active:
-        raise AppError("permission_denied", "Invalid username or password")
-    login.current = tenant
+        raise AppError("not_found", "No membership in that tenant")
+    login = session.get(SystemLogin, base_id)
+    if login is None:
+        raise AppError("not_found", "Login not found")
+    login.current = tenant_id
     _touch(login)
+    session.flush()
     return row

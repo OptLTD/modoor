@@ -44,7 +44,13 @@ def register_module_tools(mcp: Any, settings: Settings | None = None) -> list[st
         with session_scope() as session:
             from modules.base.domain import ensure_tenant
 
-            tenant_id = int(ensure_tenant(session, settings.modoor_tenant)["tenant"]["id"])
+            tenant_id = int(
+                ensure_tenant(
+                    session,
+                    settings.modoor_tenant,
+                    tenant_id=settings.modoor_tenant_id,
+                )["tenant"]["id"]
+            )
             enabled = enabled_module_ids(session, tenant_id)
     except Exception:  # noqa: BLE001
         enabled = set(_module_ids(settings)) | set(ALWAYS_ON)

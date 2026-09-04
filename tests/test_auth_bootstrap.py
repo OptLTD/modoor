@@ -67,3 +67,31 @@ def test_bootstrap_login_and_module_toggle():
         assert home_id
         welcome = wiki_domain.get_page(session, ctx, page_id=home_id)
         assert welcome["title"]
+
+
+def test_bootstrap_tenant_id_pipe_and_skip_existing(monkeypatch):
+    configure_test_db(
+        monkeypatch,
+        MODOOR_API_KEY="test-key",
+        MODOOR_TENANT="1000|Acme",
+        MODOOR_CONFIRM_SECRET="secret",
+        MODOOR_ADMIN="admin|secret123",
+    )
+    first = bootstrap(get_settings())
+    assert first["tenant"] == "Acme"
+    assert first["tenant_id"] == 1000
+    assert first["created"]["tenant"] is True
+    assert first["created"]["root_team"] is True
+    assert first["created"]["admin_user"] is True
+
+    with session_scope() as session:
+        user = base_domain.authenticate_user(
+            session, tenant=1000, username="admin", password="secret123"
+        )
+        assert user.team_id == first["team_id"]
+
+    second = bootstrap(get_settings())
+    assert second["tenant_id"] == 1000
+    assert second["created"]["tenant"] is False
+    assert second["created"]["root_team"] is False
+    assert second["created"]["admin_user"] is False

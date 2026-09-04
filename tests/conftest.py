@@ -58,6 +58,10 @@ def configure_test_db(monkeypatch, **env: str) -> None:
     monkeypatch.setenv("DATABASE_URL", url)
     monkeypatch.setenv("MODOOR_JOBS_INPROCESS", "0")
     monkeypatch.setenv("MODOOR_DOC_OCR", "0")
+    # Avoid local .env MODOOR_ADMIN / TENANT pipe forms leaking into tests.
+    if "MODOOR_ADMIN" not in env:
+        monkeypatch.delenv("MODOOR_ADMIN", raising=False)
+        monkeypatch.setenv("MODOOR_ADMIN", "")
     for key, value in env.items():
         monkeypatch.setenv(key, value)
     get_settings.cache_clear()

@@ -98,9 +98,8 @@ api: setup ## API only (:8765)
 
 external: setup ## Start external Board+Pulse (Modoor registry must be up)
 	@set -a && source .env && set +a && \
-		MODOOR_URL="http://$${MODOOR_WEB_HOST:-127.0.0.1}:$${MODOOR_WEB_PORT:-8765}" \
-		PYTHONPATH="$(ROOT)" \
-		$(PYTHON) scripts/run_external_demos.py
+		MODOOR_URL="$${MODOOR_WEBUI_URL:-http://127.0.0.1:8765}" \
+		PYTHONPATH="$(ROOT)" $(PYTHON) scripts/run_external_demos.py
 
 mcp: setup ## Run MCP server (stdio; loads .env)
 	@set -a && source .env && set +a && exec $(PYTHON) -m modoor.runtime.mcp_server

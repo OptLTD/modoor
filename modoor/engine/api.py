@@ -18,11 +18,33 @@ from modules.base.domain import SystemUser
 router = APIRouter()
 
 
-def _tenant_id() -> int:
+def _bootstrap_tenant_id() -> int:
     from modules.base.domain import ensure_tenant
 
     with session_scope() as session:
-        return int(ensure_tenant(session, get_settings().modoor_tenant)["tenant"]["id"])
+        s = get_settings()
+        return int(
+            ensure_tenant(session, s.modoor_tenant, tenant_id=s.modoor_tenant_id)[
+                "tenant"
+            ]["id"]
+        )
+
+
+def _user_payload(
+    user: SystemUser, *, tenants: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "id": user.id,
+        "uukey": user.uukey,
+        "username": user.username,
+        "realname": user.realname,
+        "tenant": user.tenant,
+        "current": user.current,
+        "base_id": user.base_id,
+    }
+    if tenants is not None:
+        payload["tenants"] = tenants
+    return payload
 
 
 def _user_from_session(request: Request) -> SystemUser | None:
@@ -35,7 +57,8 @@ def _user_from_session(request: Request) -> SystemUser | None:
         request.session.pop("user_id", None)
         return None
     with session_scope() as session:
-        user = base_domain.load_user(session, user_id, tenant=_tenant_id())
+        # By user id only — membership row carries tenant (supports switch).
+        user = base_domain.load_user(session, user_id)
         if user is None or not user.active:
             return None
         _ = (user.username, user.realname, user.current)
@@ -70,52 +93,62 @@ class LoginBody(BaseModel):
     password: str
 
 
+class SwitchTenantBody(BaseModel):
+    tenant_id: int
+
+
 @router.post("/api/auth/login")
 def api_login(request: Request, body: LoginBody) -> dict[str, Any]:
     try:
         with session_scope() as session:
             user = base_domain.authenticate_user(
                 session,
-                tenant=_tenant_id(),
                 username=body.username,
                 password=body.password,
+                tenant=_bootstrap_tenant_id(),
+                allow_fallback=True,
             )
+            tenants = base_domain.list_login_tenants(session, base_id=user.base_id)
             request.session["user_id"] = user.id
-            return {
-                "ok": True,
-                "user": {
-                    "id": user.id,
-                    "uukey": user.uukey,
-                    "username": user.username,
-                    "realname": user.realname,
-                    "tenant": user.tenant,
-                    "current": user.current,
-                },
-            }
+            return {"ok": True, "user": _user_payload(user, tenants=tenants)}
     except AppError as exc:
         raise HTTPException(status_code=401, detail=exc.message) from exc
 
 
-@router.get("/api/auth/me")
-def api_me(request: Request) -> dict[str, Any]:
+@router.get("/api/auth/profile")
+def api_profile(request: Request) -> dict[str, Any]:
     user = _require_user(request)
-    return {
-        "user": {
-            "id": user.id,
-            "uukey": user.uukey,
-            "username": user.username,
-            "realname": user.realname,
-            "tenant": user.tenant,
-            "current": user.current,
-        }
-    }
+    with session_scope() as session:
+        row = base_domain.load_user(session, int(user.id))
+        if row is None or not row.active:
+            raise HTTPException(status_code=401, detail="login required")
+        tenants = base_domain.list_login_tenants(session, base_id=row.base_id)
+        return {"user": _user_payload(row, tenants=tenants)}
+
+
+@router.post("/api/auth/switch")
+def api_switch(request: Request, body: SwitchTenantBody) -> dict[str, Any]:
+    user = _require_user(request)
+    try:
+        with session_scope() as session:
+            row = base_domain.load_user(session, int(user.id))
+            if row is None or not row.active:
+                raise HTTPException(status_code=401, detail="login required")
+            switched = base_domain.switch_login_tenant(
+                session, base_id=row.base_id, tenant_id=int(body.tenant_id)
+            )
+            tenants = base_domain.list_login_tenants(session, base_id=switched.base_id)
+            request.session["user_id"] = switched.id
+            request.session["active_module"] = "base"
+            return {"ok": True, "user": _user_payload(switched, tenants=tenants)}
+    except AppError as exc:
+        raise _err(exc) from exc
 
 
 @router.post("/api/auth/logout")
 def api_logout(request: Request) -> dict[str, Any]:
     request.session.clear()
     return {"ok": True}
-
 
 @router.post("/api/record/schema")
 def api_schema(request: Request, body: dict[str, Any] = Body(default_factory=dict)) -> Any:

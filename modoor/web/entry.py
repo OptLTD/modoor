@@ -44,7 +44,7 @@ class EntryContext:
     @property
     def module_webui_url(self) -> str | None:
         """Dev/prod URL for this module's own frontend, if configured."""
-        raw = self.settings.modoor_webui_module_urls or ""
+        raw = self.settings.modoor_module_urls or ""
         for part in raw.split(","):
             part = part.strip()
             if not part or "=" not in part:

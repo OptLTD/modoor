@@ -42,8 +42,13 @@ class ShellKit:
         """Resolved tenant id (ensures tenant + root team exist)."""
         from modules.base.domain import ensure_tenant
 
+        s = self.settings()
         with session_scope() as session:
-            return int(ensure_tenant(session, self.tenant_name())["tenant"]["id"])
+            return int(
+                ensure_tenant(
+                    session, s.modoor_tenant, tenant_id=s.modoor_tenant_id
+                )["tenant"]["id"]
+            )
 
     def current_user(self, request: Request) -> SystemUser | None:
         uid = request.session.get("user_id")
@@ -55,7 +60,7 @@ class ShellKit:
             request.session.pop("user_id", None)
             return None
         with session_scope() as session:
-            user = base_domain.load_user(session, user_id, tenant=self.tenant())
+            user = base_domain.load_user(session, user_id)
             if user is None or not user.active:
                 return None
             _ = (user.username, user.realname, user.current)
@@ -73,8 +78,8 @@ class ShellKit:
     def ctx(self, user: SystemUser) -> Ctx:
         return Ctx(tenant=user.tenant, user_id=user.id, team_id=user.team_id)
 
-    def enabled(self, session) -> set[str]:
-        return enabled_module_ids(session, self.tenant())
+    def enabled(self, session, tenant: int | None = None) -> set[str]:
+        return enabled_module_ids(session, tenant if tenant is not None else self.tenant())
 
     def user_initials(self, user: SystemUser | None) -> str:
         if user is None:
@@ -100,8 +105,21 @@ class ShellKit:
     ):
         ctx = dict(context or {})
         user = self.current_user(request)
+        active_tenant = int(user.tenant) if user is not None else self.tenant()
         with session_scope() as session:
-            enabled = self.enabled(session)
+            enabled = self.enabled(session, active_tenant)
+            tenants: list[dict[str, Any]] = []
+            tenant_label = self.tenant_name()
+            if user is not None:
+                tenants = base_domain.list_login_tenants(session, base_id=user.base_id)
+                for tn in tenants:
+                    if int(tn["id"]) == active_tenant:
+                        tenant_label = str(tn["name"])
+                        break
+                else:
+                    row = session.get(base_domain.SystemTenant, active_tenant)
+                    if row is not None:
+                        tenant_label = row.name
         current_module = detect_module(request.url.path) or request.session.get(
             "active_module"
         )
@@ -123,8 +141,9 @@ class ShellKit:
                 "request": request,
                 "current_user": user,
                 "user_initials": self.user_initials(user),
-                "tenant": self.tenant_name(),
-                "tenant_id": self.tenant(),
+                "tenant": tenant_label,
+                "tenant_id": active_tenant,
+                "tenants": tenants,
                 "flash": request.session.pop("flash", None),
                 "enabled_modules": enabled,
                 "current_module": current_module,

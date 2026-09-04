@@ -6,8 +6,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-HOST="${MODOOR_WEB_HOST:-127.0.0.1}"
-PORT="${MODOOR_WEB_PORT:-8765}"
+# shellcheck disable=SC1091
+source "${ROOT}/scripts/webui_url.sh"
 
 module_port() {
   case "$1" in
@@ -62,6 +62,12 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+set -a
+# shellcheck disable=SC1091
+source .env
+set +a
+modoor_load_webui_url
+
 start_webui() {
   local name="$1"
   local dir="${ROOT}/modules/${name}/webui"
@@ -92,20 +98,14 @@ for mid in "${MODULES[@]:-}"; do
   start_webui "${mid}"
 done
 
-set -a
-# shellcheck disable=SC1091
-source .env
-set +a
-
 # Join proxies: base=http://127.0.0.1:5175,wiki=... → mounted as /web/base, /web/wiki
 MODOOR_WEBUI_PROXIES="$(IFS=,; echo "${PROXY_PARTS[*]}")"
 export MODOOR_WEBUI_PROXIES
-# Same-origin entries for resolve_entry
-export MODOOR_WEBUI_URL="http://${HOST}:${PORT}"
+export MODOOR_WEBUI_URL
 
 echo ""
-echo "API / login  http://${HOST}:${PORT}/login"
-echo "same port    http://${HOST}:${PORT}/web/<module>"
+echo "API / login  ${MODOOR_WEBUI_URL}/login"
+echo "same port    ${MODOOR_WEBUI_URL}/web/<module>"
 for mid in "${MODULES[@]:-}"; do
   [[ -z "${mid}" ]] && continue
   printf "  /web/%-6s → vite :%s\n" "${mid}" "$(module_port "${mid}")"

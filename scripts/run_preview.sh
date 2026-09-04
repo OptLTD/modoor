@@ -7,8 +7,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-HOST="${MODOOR_WEB_HOST:-127.0.0.1}"
-PORT="${MODOOR_WEB_PORT:-8765}"
+# shellcheck disable=SC1091
+source "${ROOT}/scripts/webui_url.sh"
+
 DO_BUILD=0
 MODULES=()
 
@@ -74,15 +75,16 @@ set -a
 # shellcheck disable=SC1091
 source .env
 set +a
+modoor_load_webui_url
 
 # API serves dist itself — do not reverse-proxy vite preview.
 unset MODOOR_WEBUI_PROXIES || true
 export MODOOR_WEBUI_PROXIES=""
 export MODOOR_WEBUI_STATIC_MODULES="$(IFS=,; echo "${MODULES[*]}")"
-export MODOOR_WEBUI_URL="http://${HOST}:${PORT}"
+export MODOOR_WEBUI_URL
 
 echo ""
-echo "API / login  http://${HOST}:${PORT}/login"
+echo "API / login  ${MODOOR_WEBUI_URL}/login"
 echo "mode         preview (API mounts dist, no vite)"
 for mid in "${MODULES[@]:-}"; do
   [[ -z "${mid}" ]] && continue

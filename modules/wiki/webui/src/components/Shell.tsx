@@ -6,7 +6,7 @@ import {
   type ManifestI18n,
 } from '@modoor/hooks/shell'
 import {
-  fetchMe,
+  fetchProfile,
   fetchShellModules,
   listProjects,
   logout,
@@ -87,7 +87,7 @@ export function Shell({
     let cancelled = false
     ;(async () => {
       try {
-        const me = await fetchMe()
+        const me = await fetchProfile()
         if (cancelled) return
         const u = me.user as {
           username?: string

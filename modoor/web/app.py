@@ -119,7 +119,11 @@ def login_submit(
     try:
         with session_scope() as session:
             user = base_domain.authenticate_user(
-                session, tenant=kit.tenant(), username=username, password=password
+                session,
+                tenant=kit.tenant(),
+                username=username,
+                password=password,
+                allow_fallback=True,
             )
             request.session["user_id"] = user.id
             request.session["username"] = user.username
@@ -140,7 +144,7 @@ def home(request: Request):
     if not user:
         return RedirectResponse("/login", status_code=303)
     with session_scope() as session:
-        enabled = kit.enabled(session)
+        enabled = kit.enabled(session, user.tenant)
     active = request.session.get("active_module")
     if active == "base" or active in enabled:
         return RedirectResponse(_home_href(active or "base"), status_code=303)
@@ -238,8 +242,9 @@ def asdict_service(rec) -> dict[str, Any]:
 def api_registry_catalog(request: Request):
     ticket = request.headers.get("X-Modoor-Ticket") or request.query_params.get("ticket")
     user = kit.current_user(request) or _user_from_ticket(ticket)
+    tenant = int(user.tenant) if user is not None else kit.tenant()
     with session_scope() as session:
-        enabled = kit.enabled(session)
+        enabled = kit.enabled(session, tenant)
     return registry_catalog(enabled, user=user)
 
 
@@ -247,8 +252,20 @@ def api_registry_catalog(request: Request):
 def api_shell_modules(request: Request):
     user = kit.require_user(request)
     with session_scope() as session:
-        enabled = kit.enabled(session)
+        enabled = kit.enabled(session, user.tenant)
     return registry_catalog(enabled, user=user)
+
+
+@app.post("/auth/switch")
+def switch_tenant_form(request: Request, tenant_id: int = Form(...)):
+    user = kit.require_user(request)
+    with session_scope() as session:
+        switched = base_domain.switch_login_tenant(
+            session, base_id=user.base_id, tenant_id=int(tenant_id)
+        )
+        request.session["user_id"] = switched.id
+        request.session["active_module"] = "base"
+    return RedirectResponse(_home_href("base"), status_code=303)
 
 
 @app.get("/go/{module_id}")
@@ -260,7 +277,7 @@ def launch_module(request: Request, module_id: str):
 
     if meta.get("source") != "external":
         with session_scope() as session:
-            enabled = kit.enabled(session)
+            enabled = kit.enabled(session, user.tenant)
         if module_id not in enabled and module_id != "base":
             raise HTTPException(status_code=404, detail="module disabled")
 

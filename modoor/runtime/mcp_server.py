@@ -69,7 +69,13 @@ def _custom_skills() -> list[dict[str, Any]]:
     with session_scope() as session:
         from modules.base.domain import ensure_tenant
 
-        tenant_id = int(ensure_tenant(session, settings.modoor_tenant)["tenant"]["id"])
+        tenant_id = int(
+            ensure_tenant(
+                session,
+                settings.modoor_tenant,
+                tenant_id=settings.modoor_tenant_id,
+            )["tenant"]["id"]
+        )
         return skill_domain.list_custom_skills_for_catalog(
             session, tenant=tenant_id
         )

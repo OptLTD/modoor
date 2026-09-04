@@ -178,7 +178,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  fetchMe,
+  fetchProfile,
+  switchTenant,
   logout as apiLogout,
   fetchShellCatalog,
   shellLoginUrl,
@@ -275,18 +276,25 @@ function toggleMenu(name: Exclude<OpenMenu, null>) {
 
 async function refresh() {
   try {
-    const me = await fetchMe()
-    user.value = me.user
+    const profile = await fetchProfile()
+    user.value = profile.user
     const cat = await fetchShellCatalog()
     modules.value = cat.modules || []
-    const tid = String(cat.tenant?.id ?? me.user.tenant ?? '')
+    const tid = String(profile.user.tenant ?? cat.tenant?.id ?? '')
     tenantId.value = tid
-    tenants.value = [
-      {
-        id: tid,
-        name: String(cat.tenant?.name || tid),
-      },
-    ]
+    const fromProfile = (profile.user.tenants || []).map((tn) => ({
+      id: String(tn.id),
+      name: String(tn.name),
+    }))
+    tenants.value =
+      fromProfile.length > 0
+        ? fromProfile
+        : [
+            {
+              id: tid,
+              name: String(cat.tenant?.name || tid),
+            },
+          ]
     inbox.value = []
     detectActive()
   } catch {
@@ -312,9 +320,14 @@ function goModule(m: ShellModule) {
   if (m.path) router.push(m.path)
 }
 
-function selectTenant(tn: TenantOption) {
-  tenantId.value = tn.id
+async function selectTenant(tn: TenantOption) {
+  if (tn.id === tenantId.value) {
+    closeMenus()
+    return
+  }
   closeMenus()
+  await switchTenant(tn.id)
+  location.reload()
 }
 
 function onShellSearch() {

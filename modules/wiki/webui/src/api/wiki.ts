@@ -111,9 +111,9 @@ export function deletePage(id: string) {
   return apiSend<{ ok: boolean }>(`/api/wiki/pages/${id}`, 'DELETE')
 }
 
-export async function fetchMe() {
+export async function fetchProfile() {
   return apiGet<{ user: { id: number | string; username: string; realname?: string; tenant?: number | string } }>(
-    '/api/auth/me',
+    '/api/auth/profile',
   )
 }
 

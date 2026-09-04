@@ -527,7 +527,10 @@
             <div class="sub">Current workspace</div>
           </div>
           {% for t in tenants %}
-          <a href="#" role="menuitem" class="{% if t.name == tenant or t.id == tenant_id %}active{% endif %}" onclick="return false;">{{ t.name }}</a>
+          <form method="post" action="/auth/switch" style="margin:0">
+            <input type="hidden" name="tenant_id" value="{{ t.id }}" />
+            <button type="submit" class="menu-link {% if t.name == tenant or t.id == tenant_id %}active{% endif %}" role="menuitem">{{ t.name }}</button>
+          </form>
           {% endfor %}
         </div>
       </div>

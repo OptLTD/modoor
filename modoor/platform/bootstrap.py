@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from sqlalchemy import select
+
 from modoor.core.ctx import Ctx
 from modoor.core.db import session_scope
 from modoor.core.errors import AppError
@@ -9,13 +11,23 @@ from modoor.core.security import hash_password
 from modoor.core.settings import Settings, get_settings
 from modoor.platform.module_state import sync_discovered_modules
 from modules.base import domain as base_domain
+from modules.base.domain import SystemTenant, SystemUser
 from modules.sale import domain as sale_domain
 from modules.wiki import domain as wiki_domain
+
+
+def _find_existing_tenant(
+    session, *, tenant_id: int | None, tenant_name: str
+) -> SystemTenant | None:
+    if tenant_id is not None:
+        return session.get(SystemTenant, tenant_id)
+    return session.scalar(select(SystemTenant).where(SystemTenant.name == tenant_name))
 
 
 def bootstrap(settings: Settings | None = None) -> dict:
     settings = settings or get_settings()
     tenant_name = settings.modoor_tenant
+    tenant_id_pref = settings.modoor_tenant_id
     admin_username = settings.modoor_admin_username
     admin_password = settings.modoor_admin_password
 
@@ -31,41 +43,76 @@ def bootstrap(settings: Settings | None = None) -> dict:
     }
 
     with session_scope() as session:
-        ensured = base_domain.ensure_tenant(session, tenant_name)
-        tenant_id = ensured["tenant"]["id"]
-        team_id = ensured["team"]["id"]
-        created["tenant"] = ensured["created_tenant"]
-        created["root_team"] = ensured["created_team"]
+        existing = _find_existing_tenant(
+            session, tenant_id=tenant_id_pref, tenant_name=tenant_name
+        )
+
+        if existing is not None:
+            # Tenant already present → skip tenant / head team / admin creation.
+            tenant_id = int(existing.id)
+            team_id = base_domain.root_team_id(session, tenant_id)
+            created["tenant"] = False
+            created["root_team"] = False
+        else:
+            ensured = base_domain.ensure_tenant(
+                session, tenant_name, tenant_id=tenant_id_pref
+            )
+            tenant_id = int(ensured["tenant"]["id"])
+            team_id = int(ensured["team"]["id"])
+            created["tenant"] = ensured["created_tenant"]
+            created["root_team"] = ensured["created_team"]
 
         sync_discovered_modules(session, tenant_id, settings)
 
         bootstrap_ctx = Ctx(tenant=tenant_id, user_id=0, team_id=team_id)
 
-        try:
-            admin = base_domain.get_user(session, bootstrap_ctx, username=admin_username)
-        except AppError:
-            admin = base_domain.create_user(
-                session,
-                bootstrap_ctx,
-                username=admin_username,
-                realname="Administrator",
-                password=admin_password,
-                team_id=team_id,
-            )
-            created["admin_user"] = True
+        if existing is not None:
+            try:
+                admin = base_domain.get_user(
+                    session, bootstrap_ctx, username=admin_username
+                )
+            except AppError:
+                row = session.scalar(
+                    select(SystemUser)
+                    .where(SystemUser.tenant == tenant_id)
+                    .order_by(SystemUser.id)
+                )
+                if row is None:
+                    raise AppError(
+                        "bootstrap_error",
+                        f"Tenant {tenant_id} exists but has no users; "
+                        "cannot continue bootstrap without admin",
+                    ) from None
+                admin = base_domain.get_user(session, bootstrap_ctx, user_id=row.id)
+        else:
+            try:
+                admin = base_domain.get_user(
+                    session, bootstrap_ctx, username=admin_username
+                )
+            except AppError:
+                admin = base_domain.create_user(
+                    session,
+                    bootstrap_ctx,
+                    team_id=team_id,
+                    realname="Administrator",
+                    username=admin_username,
+                    password=admin_password,
+                )
+                created["admin_user"] = True
+
+            admin_id = int(admin["id"])
+            row = base_domain.load_user(session, admin_id, tenant=tenant_id)
+            if row and row.login is not None and not row.login.password:
+                row.login.password = hash_password(admin_password)
+                created["admin_password_reset"] = True
+            if row and row.login is not None and row.login.current is None:
+                row.login.current = tenant_id
+            if row and row.login is not None and not (row.login.realname or "").strip():
+                row.login.realname = "Administrator"
+            if row and row.team_id != team_id:
+                row.team_id = team_id
 
         admin_id = int(admin["id"])
-        row = base_domain.load_user(session, admin_id, tenant=tenant_id)
-        if row and row.login is not None and not row.login.password:
-            row.login.password = hash_password(admin_password)
-            created["admin_password_reset"] = True
-        if row and row.login is not None and row.login.current is None:
-            row.login.current = tenant_id
-        if row and row.login is not None and not (row.login.realname or "").strip():
-            row.login.realname = "Administrator"
-        if row and row.team_id != team_id:
-            row.team_id = team_id
-
         ctx = Ctx(tenant=tenant_id, user_id=admin_id, team_id=team_id)
 
         try:

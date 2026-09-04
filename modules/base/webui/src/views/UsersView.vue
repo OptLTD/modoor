@@ -124,7 +124,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import {
-  fetchMe,
+  fetchProfile,
   fetchSchema,
   useI18n,
   type SchemaClick,
@@ -469,7 +469,7 @@ async function submitPassword() {
 
 onMounted(async () => {
   try {
-    const me = await fetchMe()
+    const me = await fetchProfile()
     meUserId.value = me.user?.uukey != null ? String(me.user.uukey) : null
   } catch {
     meUserId.value = null

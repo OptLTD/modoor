@@ -85,6 +85,14 @@ def test_teams_hang_under_head():
             base_domain.update_team(session, ctx, team_id=head, parent=sales["id"])
         assert ei.value.code == "validation_error"
 
+        tree = base_domain.list_team_tree(session, ctx)
+        assert tree["count"] >= 3
+        assert len(tree["tree"]) == 1
+        assert tree["tree"][0]["id"] == head
+        child_ids = {c["id"] for c in tree["tree"][0]["children"]}
+        assert sales["id"] in child_ids
+        assert ops["id"] in child_ids
+
 
 def test_user_upsert_without_password_and_cannot_self_disable():
     ctx = resolve_ctx(get_settings())

@@ -17,7 +17,7 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   if (to.meta.public) return true
   try {
-    const res = await fetch('/api/auth/me', { credentials: 'include' })
+    const res = await fetch('/api/auth/profile', { credentials: 'include' })
     if (res.status === 401) {
       location.href = shellLoginUrl(location.href)
       return false
