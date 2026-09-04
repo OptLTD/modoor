@@ -1,0 +1,38 @@
+import { registerMessages } from '../i18n'
+
+registerMessages('common', {
+  'en-US': {
+    save: 'Save',
+    cancel: 'Cancel',
+    delete: 'Delete',
+    create: 'Create',
+    edit: 'Edit',
+    back: 'Back',
+    loading: 'Loading…',
+    empty: 'No data',
+    error: 'Something went wrong',
+    confirmDelete: 'Delete {name}?',
+    download: 'Download',
+    open: 'Open',
+    all: 'All',
+    upload: 'Upload',
+    uploading: 'Uploading…',
+  },
+  'zh-CN': {
+    save: '保存',
+    cancel: '取消',
+    delete: '删除',
+    create: '新建',
+    edit: '编辑',
+    back: '返回',
+    loading: '加载中…',
+    empty: '暂无数据',
+    error: '出错了',
+    confirmDelete: '删除「{name}」？',
+    download: '下载',
+    open: '打开',
+    all: '全部',
+    upload: '上传',
+    uploading: '上传中…',
+  },
+})

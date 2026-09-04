@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Modoor{% endblock %}</title>
+  <style>
+    :root {
+      --bg: #f6f3ee;
+      --ink: #1c1917;
+      --muted: #78716c;
+      --line: #e7e5e4;
+      --accent: #0f766e;
+      --card: #fffcf8;
+      --danger: #b91c1c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top right, #d9f3ef 0, transparent 40%),
+        linear-gradient(180deg, #faf7f2, var(--bg));
+      color: var(--ink);
+      min-height: 100vh;
+    }
+    .topbar {
+      display: flex;
+      gap: 1rem;
+      align-items: stretch;
+      justify-content: space-between;
+      min-height: 3rem;
+      border-bottom: 1px solid var(--line);
+      flex-wrap: wrap;
+      background: rgba(255,252,248,0.92);
+    }
+    .topbar-left {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      flex-wrap: wrap;
+      min-width: 0;
+      flex: 1;
+    }
+    .shell-logo {
+      display: inline-flex;
+      align-items: center;
+      flex-shrink: 0;
+      margin: 0 0.35rem 0 0.65rem;
+      border-radius: 8px;
+      overflow: hidden;
+      line-height: 0;
+      align-self: center;
+    }
+    .shell-logo img {
+      width: 32px;
+      height: 32px;
+      display: block;
+      object-fit: cover;
+    }
+
+    /* Brand = current module switcher; caret glued to bottom-right corner */
+    .brand-wrap {
+      position: relative;
+      display: flex;
+      align-items: stretch;
+      flex-shrink: 0;
+    }
+    .brand {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      min-width: 5.25rem;
+      padding: 0.7rem 1.35rem 0.7rem 1rem;
+      margin: 0;
+      border: none;
+      border-right: 1px solid var(--line);
+      border-radius: 0.35rem 0 0 0;
+      background: #fff;
+      color: var(--ink);
+      font-weight: 700;
+      font-size: 0.98rem;
+      line-height: 1.2;
+      cursor: pointer;
+      user-select: none;
+    }
+    .brand:hover, .brand-wrap.open .brand { background: #fafafa; }
+    .brand-caret {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      width: 0;
+      height: 0;
+      border-style: solid;
+      border-width: 0 0 8px 8px;
+      border-color: transparent transparent var(--muted) transparent;
+      pointer-events: none;
+    }
+    .brand-wrap.open .brand-caret {
+      border-color: transparent transparent var(--accent) transparent;
+    }
+    .brand-menu {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      width: max-content;
+      min-width: 100%;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-top: none;
+      z-index: 40;
+      padding: 0.25rem 0;
+      box-shadow: 0 8px 20px rgba(28, 25, 23, 0.08);
+    }
+    .brand-wrap.open .brand-menu { display: block; }
+    .brand-menu a {
+      display: block;
+      padding: 0.5rem 0.85rem;
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 0.92rem;
+      white-space: nowrap;
+    }
+    .brand-menu a:hover { background: #f5f5f4; color: var(--accent); }
+    .brand-menu a.active { font-weight: 600; background: #ecfdf5; }
+
+    /* Nav = current module menus only */
+    .nav {
+      display: flex;
+      gap: 0.15rem;
+      flex-wrap: wrap;
+      align-items: center;
+      padding: 0 0.5rem;
+    }
+    .nav a {
+      text-decoration: none;
+      color: var(--muted);
+      padding: 0.35rem 0.7rem;
+      font-size: 0.92rem;
+    }
+    .nav a:hover, .nav a.active { color: var(--accent); }
+
+    /* Systray — Odoo-style: messages + tenant + avatar */
+    .systray {
+      display: flex;
+      align-items: stretch;
+      margin-left: auto;
+      padding-right: 0.35rem;
+    }
+    .shell-search-wrap {
+      display: flex;
+      align-items: center;
+      padding: 0 0.35rem 0 0.5rem;
+      margin: 0;
+    }
+    .shell-search {
+      width: 11rem;
+      max-width: 28vw;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0.35rem 0.65rem;
+      font: inherit;
+      font-size: 0.85rem;
+      background: color-mix(in srgb, var(--panel) 92%, #fff);
+      color: var(--ink);
+    }
+    .shell-search:focus {
+      outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+      outline-offset: 1px;
+      border-color: var(--accent);
+    }
+    .systray-item {
+      position: relative;
+      display: flex;
+      align-items: stretch;
+    }
+    .systray-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      min-width: 2.75rem;
+      padding: 0 0.7rem;
+      margin: 0;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.88rem;
+      font-weight: 500;
+    }
+    .systray-btn:hover,
+    .systray-item.open .systray-btn {
+      background: rgba(15, 118, 110, 0.08);
+      color: var(--ink);
+    }
+    .systray-icon {
+      width: 1.15rem;
+      height: 1.15rem;
+      display: block;
+      flex-shrink: 0;
+    }
+    .systray-badge {
+      position: absolute;
+      top: 0.45rem;
+      right: 0.35rem;
+      min-width: 1rem;
+      height: 1rem;
+      padding: 0 0.25rem;
+      border-radius: 999px;
+      background: var(--danger);
+      color: #fff;
+      font-size: 0.65rem;
+      line-height: 1rem;
+      text-align: center;
+      font-weight: 700;
+    }
+    .tenant-label {
+      max-width: 8rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .avatar {
+      width: 1.85rem;
+      height: 1.85rem;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+    .systray-menu {
+      display: none;
+      position: absolute;
+      top: 100%;
+      right: 0;
+      min-width: 14rem;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-top: none;
+      z-index: 50;
+      padding: 0.35rem 0;
+      box-shadow: 0 10px 24px rgba(28, 25, 23, 0.1);
+    }
+    .systray-item.open .systray-menu { display: block; }
+    .systray-menu.wide { min-width: 18rem; }
+    .systray-menu-header {
+      padding: 0.65rem 0.9rem 0.55rem;
+      border-bottom: 1px solid var(--line);
+    }
+    .systray-menu-header .name {
+      font-weight: 650;
+      color: var(--ink);
+      font-size: 0.92rem;
+    }
+    .systray-menu-header .sub {
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-top: 0.15rem;
+    }
+    .systray-menu a,
+    .systray-menu button.menu-link {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 0.5rem 0.9rem;
+      color: var(--ink);
+      text-decoration: none;
+      font-size: 0.9rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font: inherit;
+    }
+    .systray-menu a:hover,
+    .systray-menu button.menu-link:hover {
+      background: #f5f5f4;
+      color: var(--accent);
+    }
+    .systray-menu a.active { font-weight: 600; background: #ecfdf5; }
+    .systray-menu .sep {
+      height: 1px;
+      background: var(--line);
+      margin: 0.3rem 0;
+    }
+    .systray-empty {
+      padding: 1.25rem 1rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+    .systray-login {
+      display: inline-flex;
+      align-items: center;
+      padding: 0 1rem;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.92rem;
+    }
+
+    main { padding: 1.5rem; max-width: 1280px; margin: 0 auto; }
+    h1 { font-size: 1.45rem; margin: 0 0 0.75rem; }
+    h2 { font-size: 1.1rem; margin: 1.5rem 0 0.6rem; }
+    .meta { color: var(--muted); font-size: 0.9rem; }
+    .flash { background: #ecfdf5; border: 1px solid #a7f3d0; padding: 0.75rem 1rem; margin-bottom: 1rem; }
+    .error { background: #fef2f2; border: 1px solid #fecaca; color: var(--danger); padding: 0.75rem 1rem; margin-bottom: 1rem; }
+    table { width: 100%; border-collapse: collapse; background: var(--card); margin-bottom: 1rem; }
+    th, td { text-align: left; padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+    th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+    code, pre { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.85rem; }
+    pre { background: #1c1917; color: #f5f5f4; padding: 1rem; overflow: auto; white-space: pre-wrap; }
+    .pill { display: inline-block; padding: 0.1rem 0.45rem; border: 1px solid var(--line); font-size: 0.75rem; color: var(--muted); }
+    form.inline { display: inline; }
+    .form-grid { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); align-items: end; background: var(--card); border: 1px solid var(--line); padding: 1rem; margin-bottom: 1rem; }
+    label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: var(--muted); }
+    input, select, textarea, button {
+      font: inherit; padding: 0.45rem 0.55rem; border: 1px solid var(--line); background: #fff; color: var(--ink);
+    }
+    textarea { min-height: 220px; width: 100%; }
+    button, .btn {
+      background: var(--accent); color: #fff; border: none; cursor: pointer; text-decoration: none;
+      display: inline-block; padding: 0.45rem 0.8rem;
+    }
+    button.secondary, .btn.secondary { background: #44403c; }
+    button.danger { background: var(--danger); }
+    .login-wrap { max-width: 380px; margin: 4rem auto; background: var(--card); border: 1px solid var(--line); padding: 1.5rem; }
+
+    /* override global button styles for shell chrome */
+    .brand,
+    .systray-btn {
+      background: transparent;
+      color: inherit;
+      padding: inherit;
+      display: inline-flex;
+      justify-content: center;
+    }
+    /* .brand {
+      background: #fff;
+      color: var(--ink);
+      padding: 0.7rem 1.35rem 0.7rem 1rem;
+    } */
+    .brand:hover, .brand-wrap.open .brand { background: #fafafa; }
+    .systray-btn {
+      padding: 0 0.7rem;
+      color: var(--muted);
+      min-height: 100%;
+    }
+    .systray-btn:hover,
+    .systray-item.open .systray-btn {
+      background: rgba(15, 118, 110, 0.08);
+      color: var(--ink);
+    }
+    .systray-menu button.menu-link {
+      background: none;
+      color: var(--ink);
+      padding: 0.5rem 0.9rem;
+      display: block;
+      width: 100%;
+      text-align: left;
+    }
+    .systray-menu button.menu-link:hover {
+      background: #f5f5f4;
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="topbar-left">
+      <a class="shell-logo" href="/" aria-label="Modoor">
+        <img src="/logo.png" alt="" width="32" height="32" />
+      </a>
+      {% if current_user %}
+      <div class="brand-wrap" id="brand-wrap">
+        <button type="button" class="brand" id="brand-btn" aria-haspopup="listbox" aria-expanded="false">
+          {{ current_module_label or 'Modoor' }}
+          <span class="brand-caret" aria-hidden="true"></span>
+        </button>
+        <div class="brand-menu" id="brand-menu" role="listbox">
+          {% for m in module_switcher %}
+            <a href="{{ m.href }}" role="option" class="{% if m.id == current_module %}active{% endif %}">{{ m.label }}</a>
+          {% endfor %}
+        </div>
+      </div>
+      <nav class="nav" aria-label="Menus">
+        {% for item in module_menus %}
+          <a href="{{ item.path }}" class="{% if request.url.path == item.path %}active{% endif %}">{{ item.label }}</a>
+        {% endfor %}
+      </nav>
+      {% else %}
+        <span class="brand" style="cursor:default;border:none;background:transparent;padding-left:0;">Modoor</span>
+      {% endif %}
+    </div>
+    <div class="systray">
+      {% if current_user %}
+      {# Messages #}
+      <form class="shell-search-wrap" onsubmit="event.preventDefault(); if (window.__modoorShellSearch) window.__modoorShellSearch(this.q.value); return false;">
+        <input class="shell-search" type="search" name="q" placeholder="搜索…" aria-label="搜索" />
+      </form>
+      <div class="systray-item" data-dropdown>
+        <button type="button" class="systray-btn" aria-haspopup="true" aria-expanded="false" aria-label="Messages" title="Messages">
+          <svg class="systray-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path d="M4 6.5h16v11H4z"/>
+            <path d="M4 7l8 6 8-6"/>
+          </svg>
+          {% if inbox_messages %}
+          <span class="systray-badge">{{ inbox_messages|length }}</span>
+          {% endif %}
+        </button>
+        <div class="systray-menu wide" role="menu">
+          <div class="systray-menu-header">
+            <div class="name">Messages</div>
+          </div>
+          {% if inbox_messages %}
+            {% for msg in inbox_messages %}
+              <a href="{{ msg.href or '#' }}" role="menuitem">{{ msg.title }}</a>
+            {% endfor %}
+          {% else %}
+            <div class="systray-empty">No messages yet</div>
+          {% endif %}
+        </div>
+      </div>
+
+      {# Tenant — only when multiple (template shell currently single-tenant) #}
+      {% if tenants is defined and tenants|length > 1 %}
+      <div class="systray-item" data-dropdown>
+        <button type="button" class="systray-btn" aria-haspopup="true" aria-expanded="false" aria-label="Tenant" title="Tenant">
+          <svg class="systray-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path d="M3 21h18"/>
+            <path d="M5 21V8l7-4 7 4v13"/>
+            <path d="M9 21v-6h6v6"/>
+          </svg>
+          <span class="tenant-label">{{ tenant }}</span>
+        </button>
+        <div class="systray-menu" role="menu">
+          <div class="systray-menu-header">
+            <div class="name">Tenant</div>
+            <div class="sub">Current workspace</div>
+          </div>
+          {% for t in tenants %}
+          <a href="#" role="menuitem" class="{% if t.name == tenant or t.id == tenant_id %}active{% endif %}" onclick="return false;">{{ t.name }}</a>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      {# Avatar / user menu #}
+      <div class="systray-item" data-dropdown>
+        <button type="button" class="systray-btn" aria-haspopup="true" aria-expanded="false" aria-label="User menu" title="{{ current_user.display_name }}">
+          <span class="avatar">{{ user_initials }}</span>
+        </button>
+        <div class="systray-menu" role="menu">
+          <div class="systray-menu-header">
+            <div class="name">{{ current_user.display_name }}</div>
+            <div class="sub">{{ current_user.login }}{% if current_user.email %} · {{ current_user.email }}{% endif %}</div>
+          </div>
+          <form method="post" action="/logout">
+            <button type="submit" class="menu-link" role="menuitem">Log out</button>
+          </form>
+        </div>
+      </div>
+      {% else %}
+        <a class="systray-login" href="/login">Login</a>
+      {% endif %}
+    </div>
+  </div>
+  <main>
+    {% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  {% if current_user %}
+  <script>
+    (function () {
+      function closeAll(except) {
+        document.querySelectorAll("[data-dropdown].open, #brand-wrap.open").forEach(function (el) {
+          if (el === except) return;
+          el.classList.remove("open");
+          var b = el.querySelector("button");
+          if (b) b.setAttribute("aria-expanded", "false");
+        });
+      }
+      var brand = document.getElementById("brand-wrap");
+      var brandBtn = document.getElementById("brand-btn");
+      if (brand && brandBtn) {
+        brandBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          var open = !brand.classList.contains("open");
+          closeAll(open ? brand : null);
+          brand.classList.toggle("open", open);
+          brandBtn.setAttribute("aria-expanded", open ? "true" : "false");
+        });
+      }
+      document.querySelectorAll("[data-dropdown]").forEach(function (item) {
+        var btn = item.querySelector(".systray-btn");
+        if (!btn) return;
+        btn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          var open = !item.classList.contains("open");
+          closeAll(open ? item : null);
+          item.classList.toggle("open", open);
+          btn.setAttribute("aria-expanded", open ? "true" : "false");
+        });
+      });
+      document.addEventListener("click", function () { closeAll(null); });
+    })();
+  </script>
+  {% endif %}
+</body>
+</html>

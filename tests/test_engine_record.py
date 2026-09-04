@@ -1,0 +1,115 @@
+from __future__ import annotations
+
+import pytest
+from fastapi.testclient import TestClient
+
+from modoor.core.db import init_db, session_scope
+from modoor.core.settings import get_settings
+from modoor.engine.registry import clear_bundle_cache
+from modoor.engine.service import reload_engine_caches
+from modoor.web.app import app
+from modules.sale import domain as sale_domain
+from modoor.core.ctx import Ctx
+
+
+@pytest.fixture()
+def client(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'engine.db'}")
+    monkeypatch.setenv("MODOOR_API_KEY", "test-key")
+    monkeypatch.setenv("MODOOR_TENANT", "demo")
+    monkeypatch.setenv("MODOOR_CONFIRM_SECRET", "secret")
+    monkeypatch.setenv("MODOOR_ADMIN_USERNAME", "admin")
+    monkeypatch.setenv("MODOOR_ADMIN_PASSWORD", "admin123")
+    get_settings.cache_clear()
+    clear_bundle_cache()
+    reload_engine_caches()
+    init_db(get_settings())
+    # bootstrap admin via app lifespan-ish
+    from modoor.platform.bootstrap import bootstrap
+
+    bootstrap()
+    with TestClient(app) as c:
+        yield c
+    get_settings.cache_clear()
+    clear_bundle_cache()
+    reload_engine_caches()
+
+
+def _login(client: TestClient) -> None:
+    res = client.post("/api/auth/login", json={"username": "admin", "password": "admin123"})
+    assert res.status_code == 200, res.text
+
+
+def test_schema_search_input_upsert_flow(client: TestClient):
+    _login(client)
+
+    schema = client.post(
+        "/api/record/schema",
+        json={"model": "sale.order", "using": "table", "scene": "SEARCH"},
+    )
+    assert schema.status_code == 200, schema.text
+    body = schema.json()
+    assert body["model"] == "sale.order"
+    assert body["table"]["fields"]
+    assert any(f["uukey"] == "basic.partner_name" for f in body["table"]["fields"])
+
+    # seed via domain
+    with session_scope() as session:
+        sale_domain.create_order(
+            session,
+            Ctx(tenant=1, user_id=1, team_id=1),
+            partner_name="Alice",
+            lines=[{"product_name": "Widget", "qty": 2, "unit_price": 10}],
+            note="n1",
+        )
+
+    search = client.post(
+        "/api/record/search",
+        json={
+            "model": "sale.order",
+            "using": "default",
+            "scene": "SEARCH",
+            "page": 1,
+            "size": 50,
+            "query": {"basic.partner_name": "Alice"},
+        },
+    )
+    assert search.status_code == 200, search.text
+    data = search.json()
+    assert data["count"] >= 1
+    assert data["values"]
+    row = data["values"][0]
+    assert "basic.uukey" in row
+    assert row["basic.partner_name"] == "Alice"
+    assert row["amount.total"] == 20.0
+    uukey = row["basic.uukey"]
+
+    detail = client.post(
+        "/api/record/input",
+        json={"model": "sale.order", "using": "default", "scene": "DETAIL", "uukey": uukey},
+    )
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["input"]["values"]["basic.partner_name"] == "Alice"
+
+    upsert = client.post(
+        "/api/record/upsert",
+        json={
+            "model": "sale.order",
+            "using": "default",
+            "scene": "UPDATE",
+            "batch": [
+                {
+                    "uukey": uukey,
+                    "basic.uukey": uukey,
+                    "basic.partner_name": "Alice Co",
+                    "partner_name": "Alice Co",
+                    "basic.status": "draft",
+                    "status": "draft",
+                    "basic.note": "updated",
+                }
+            ],
+        },
+    )
+    assert upsert.status_code == 200, upsert.text
+    recs = upsert.json()["records"]
+    assert recs[0]["current"]["basic.partner_name"] == "Alice Co"

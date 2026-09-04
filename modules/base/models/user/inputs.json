@@ -1,0 +1,19 @@
+{
+  "default": {
+    "uukey": "default",
+    "title": "用户表单",
+    "preset": { "basic.active": "true", "basic.password": "" },
+    "groups": ["basic"],
+    "fields": [
+      "basic.username",
+      "basic.realname",
+      "basic.email",
+      "basic.password",
+      "basic.active",
+      "basic.team_id"
+    ],
+    "hidden": [],
+    "clicks": [],
+    "extra": {}
+  }
+}

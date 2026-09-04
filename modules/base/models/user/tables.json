@@ -1,0 +1,18 @@
+{
+  "default": {
+    "uukey": "default",
+    "title": "用户列表",
+    "fields": [
+      "basic.uukey",
+      "basic.username",
+      "basic.realname",
+      "basic.email",
+      "basic.active",
+      "basic.team_id"
+    ],
+    "sticky": ["basic.username"],
+    "clicks": ["create", "delete"],
+    "query": {},
+    "extra": {}
+  }
+}

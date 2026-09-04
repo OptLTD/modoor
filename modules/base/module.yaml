@@ -1,0 +1,74 @@
+id: base
+version: 0.1.0
+depends: []
+summary: Base RBAC — apps, users, roles, and role assignment
+tags: [platform, rbac, core]
+
+ui-web:
+  label: Base Data
+  kind: app
+  base: /base
+  entry: /base/users
+
+exports:
+  tools:
+    - base.create_app
+    - base.update_app
+    - base.get_app
+    - base.list_apps
+    - base.delete_app
+    - base.create_user
+    - base.update_user
+    - base.get_user
+    - base.list_users
+    - base.delete_user
+    - base.create_role
+    - base.update_role
+    - base.get_role
+    - base.list_roles
+    - base.delete_role
+    - base.assign_role
+    - base.revoke_role
+    - base.list_user_roles
+    - base.list_modules
+    - base.set_module_enabled
+  skills:
+    - base.manage_rbac
+  menus:
+    - id: base.users
+      label: Users
+      path: /base/users
+      sequence: 10
+    - id: base.roles
+      label: Roles
+      path: /base/roles
+      sequence: 20
+    - id: base.modules
+      label: Modules
+      path: /base/modules
+      sequence: 30
+
+ability:
+  - base.app.read
+  - base.app.write
+  - base.user.read
+  - base.user.write
+  - base.role.read
+  - base.role.write
+
+risk_default: medium
+
+i18n:
+  zh-CN:
+    app.label: 基础数据
+    base.users: 用户
+    base.roles: 角色
+    base.modules: 模块
+    base.app.read: 读取应用
+    base.app.write: 管理应用
+    base.user.read: 读取用户
+    base.user.write: 管理用户
+    base.role.read: 读取角色
+    base.role.write: 管理角色
+  en-US:
+    app.label: Base Data

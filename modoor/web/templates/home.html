@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Modoor · Home{% endblock %}
+{% block content %}
+  <h1>控制台</h1>
+  <p class="meta">已登录 · tenant=<strong>{{ tenant }}</strong></p>
+
+  <div class="cards" style="margin-bottom: 1.5rem;">
+    <div class="card">
+      <h2>Users</h2>
+      <p class="meta">账号管理</p>
+      <a href="/web/base/users">打开 →</a>
+    </div>
+    <div class="card">
+      <h2>Roles</h2>
+      <p class="meta">角色与授权</p>
+      <a href="/web/base/roles">打开 →</a>
+    </div>
+    {% if "wiki" in enabled_modules %}
+    <div class="card">
+      <h2>Wiki</h2>
+      <p class="meta">页面管理</p>
+      <a href="/web/wiki">打开 →</a>
+    </div>
+    {% endif %}
+    <div class="card">
+      <h2>Modules</h2>
+      <p class="meta">模块启停</p>
+      <a href="/web/base/modules">打开 →</a>
+    </div>
+  </div>
+
+  <h1>模块状态</h1>
+  <table>
+    <thead>
+      <tr><th>Module</th><th>Version</th><th>Enabled</th><th>Summary</th></tr>
+    </thead>
+    <tbody>
+      {% for m in modules %}
+      <tr>
+        <td><strong>{{ m.id }}</strong>{% if m.always_on %} <span class="pill">always on</span>{% endif %}</td>
+        <td>{{ m.version }}</td>
+        <td><span class="pill">{{ "on" if m.enabled else "off" }}</span></td>
+        <td class="meta">{{ m.summary }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

@@ -1,0 +1,112 @@
+{
+  "model": {
+    "uukey": "base.user",
+    "title": "用户",
+    "brief": "Tenant users",
+    "source": "base_users",
+    "search": "base_users",
+    "extra": {}
+  },
+  "groups": {
+    "basic": {
+      "uukey": "basic",
+      "title": "基础信息",
+      "gtype": "FLATTEN",
+      "model": "base.user",
+      "seqno": 0,
+      "extra": {}
+    }
+  },
+  "fields": {
+    "basic.uukey": {
+      "field": "uukey",
+      "ftype": "STRING",
+      "group": "basic",
+      "index": "basic.uukey",
+      "label": "ID",
+      "seqno": 1,
+      "width": 72,
+      "extra": { "editable": "NEVER", "implicit": true }
+    },
+    "basic.username": {
+      "field": "username",
+      "ftype": "STRING",
+      "group": "basic",
+      "index": "basic.username",
+      "label": "用户名",
+      "seqno": 2,
+      "width": 140,
+      "extra": { "required": true, "editable": "INSERT" }
+    },
+    "basic.realname": {
+      "field": "realname",
+      "ftype": "STRING",
+      "group": "basic",
+      "index": "basic.realname",
+      "label": "姓名",
+      "seqno": 3,
+      "width": 140,
+      "extra": { "required": true, "editable": "ALWAYS" }
+    },
+    "basic.email": {
+      "field": "email",
+      "ftype": "STRING",
+      "group": "basic",
+      "index": "basic.email",
+      "label": "邮箱",
+      "seqno": 4,
+      "width": 180,
+      "extra": { "editable": "ALWAYS" }
+    },
+    "basic.active": {
+      "field": "active",
+      "ftype": "OPTIONAL",
+      "group": "basic",
+      "index": "basic.active",
+      "label": "启用",
+      "seqno": 5,
+      "width": 88,
+      "extra": {
+        "required": true,
+        "editable": "ALWAYS",
+        "options": [
+          { "uukey": "true", "label": "是" },
+          { "uukey": "false", "label": "否" }
+        ]
+      }
+    },
+    "basic.team_id": {
+      "field": "team_id",
+      "ftype": "NUMERIC",
+      "group": "basic",
+      "index": "basic.team_id",
+      "label": "团队",
+      "seqno": 6,
+      "width": 88,
+      "extra": { "editable": "ALWAYS", "precision": 0 }
+    },
+    "basic.password": {
+      "field": "password",
+      "ftype": "STRING",
+      "group": "basic",
+      "index": "basic.password",
+      "label": "密码",
+      "seqno": 7,
+      "extra": { "editable": "ALWAYS" }
+    }
+  },
+  "clicks": {
+    "create": {
+      "uukey": "create",
+      "label": "新建",
+      "action": "record.create",
+      "seqno": 1
+    },
+    "delete": {
+      "uukey": "delete",
+      "label": "删除",
+      "action": "record.delete",
+      "seqno": 2
+    }
+  }
+}

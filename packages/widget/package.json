@@ -1,0 +1,26 @@
+{
+  "name": "@modoor/widget",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./SchemaTable": "./src/SchemaTable/index.ts",
+    "./SchemaSheet": "./src/SchemaSheet/index.ts",
+    "./FormModal": "./src/FormModal/index.ts",
+    "./SelectBox": "./src/SelectBox/index.ts",
+    "./FilterPanel": "./src/FilterPanel/index.ts",
+    "./ShellFrame": "./src/ShellFrame/index.ts",
+    "./styles.css": "./src/styles.css"
+  },
+  "peerDependencies": {
+    "vue": "^3.5.0"
+  },
+  "dependencies": {
+    "@modoor/hooks": "0.1.0",
+    "jspreadsheet-ce": "^5.0.4",
+    "jsuites": "^6.4.3"
+  }
+}

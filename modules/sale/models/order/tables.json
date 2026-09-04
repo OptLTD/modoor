@@ -1,0 +1,42 @@
+{
+  "default": {
+    "uukey": "default",
+    "title": "订单列表",
+    "fields": [
+      "basic.uukey",
+      "basic.utime",
+      "basic.status",
+      "basic.partner_name",
+      "amount.total",
+      "basic.note"
+    ],
+    "sticky": ["basic.uukey"],
+    "clicks": ["create", "delete"],
+    "query": {},
+    "extra": {}
+  },
+  "table": {
+    "uukey": "table",
+    "title": "订单列表",
+    "fields": [
+      "basic.uukey",
+      "basic.utime",
+      "basic.status",
+      "basic.partner_name",
+      "amount.total",
+      "basic.note"
+    ],
+    "sticky": ["basic.uukey"],
+    "clicks": ["create", "delete"],
+    "query": {},
+    "extra": {}
+  },
+  "relation": {
+    "uukey": "relation",
+    "title": "关联选择",
+    "fields": ["basic.uukey", "basic.status", "basic.partner_name", "amount.total"],
+    "clicks": [],
+    "query": {},
+    "extra": {}
+  }
+}

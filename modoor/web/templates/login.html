@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Login · Modoor{% endblock %}
+{% block content %}
+<div class="login-wrap">
+  <h1>Login</h1>
+  <p class="meta">Tenant: <strong>{{ tenant }}</strong></p>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  <form method="post" action="/login" class="form-grid" style="border:none;padding:0;background:transparent;">
+    {% if next %}<input type="hidden" name="next" value="{{ next }}" />{% endif %}
+    <label>Username
+      <input name="username" value="{{ username or 'admin' }}" required autocomplete="username" />
+    </label>
+    <label>Password
+      <input type="password" name="password" required autocomplete="current-password" />
+    </label>
+    <button type="submit">Sign in</button>
+  </form>
+  <p class="meta" style="margin-top:1rem;">Default bootstrap: admin / admin123</p>
+</div>
+{% endblock %}

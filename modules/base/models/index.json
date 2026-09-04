@@ -1,0 +1,6 @@
+{
+  "base.user": {
+    "path": "user",
+    "level": "platform"
+  }
+}

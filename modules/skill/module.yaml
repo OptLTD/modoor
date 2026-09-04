@@ -1,0 +1,50 @@
+id: skill
+version: 0.1.0
+depends: []
+summary: Custom skill catalog — CRUD tenant skills; module-exported skills are view-only
+tags: [platform, skill, catalog]
+
+ui-web:
+  kind: app
+  label: Skills
+  base: /skill
+  entry: /skill
+
+exports:
+  tools:
+    - skill.get_skill
+    - skill.list_skills
+    - skill.create_skill
+    - skill.update_skill
+    - skill.delete_skill
+  skills:
+    - skill.manage_custom_skill
+  menus:
+    - id: skill.catalog
+      label: Catalog
+      path: /skill
+      sequence: 10
+    - id: skill.new
+      label: New skill
+      path: /skill/new
+      sequence: 20
+
+ability:
+  - skill.read
+  - skill.write
+
+risk_default: medium
+
+i18n:
+  zh-CN:
+    app.label: 技能库
+    skill.catalog: 目录
+    skill.new: 新建技能
+    skill.read: 读取技能
+    skill.write: 管理技能
+  en-US:
+    app.label: Skills
+    skill.catalog: Catalog
+    skill.new: New skill
+    skill.read: Read skill
+    skill.write: Manage skill
