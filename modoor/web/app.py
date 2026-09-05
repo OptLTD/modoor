@@ -81,27 +81,20 @@ register_module_web(app, kit)
 register_frontends(app)
 
 
-def _safe_next(raw: str | None, fallback: str) -> str:
-    """Allow absolute http(s) next or fall back to module entry."""
-    if not raw:
-        return fallback
-    s = raw.strip()
-    if s.startswith("http://") or s.startswith("https://"):
-        return s
-    return fallback
-
-
-def _home_href(module_id: str = "base") -> str:
-    return resolve_home(module_id)
-
-
 # ---- Auth / home / health ----
 
 @app.get("/login", response_class=HTMLResponse)
 def login_page(request: Request):
     next_url = request.query_params.get("next") or ""
-    if kit.current_user(request):
-        return RedirectResponse(_safe_next(next_url, _home_href("base")), status_code=303)
+    user = kit.current_user(request)
+    if user:
+        with session_scope() as session:
+            mid, href = kit.landing_for_user(session, user, next_url=next_url)
+            if mid:
+                request.session["active_module"] = mid
+            else:
+                request.session.pop("active_module", None)
+        return RedirectResponse(href, status_code=303)
     return kit.render(
         request,
         "login.html",
@@ -127,7 +120,11 @@ def login_submit(
             )
             request.session["user_id"] = user.id
             request.session["username"] = user.username
-            request.session["active_module"] = "base"
+            mid, href = kit.landing_for_user(session, user, next_url=next)
+            if mid:
+                request.session["active_module"] = mid
+            else:
+                request.session.pop("active_module", None)
     except AppError as exc:
         return kit.render(
             request,
@@ -135,7 +132,7 @@ def login_submit(
             {"error": exc.message, "username": username, "next": next},
             status_code=400,
         )
-    return RedirectResponse(_safe_next(next, _home_href("base")), status_code=303)
+    return RedirectResponse(href, status_code=303)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -143,15 +140,10 @@ def home(request: Request):
     user = kit.current_user(request)
     if not user:
         return RedirectResponse("/login", status_code=303)
+    request.session.pop("active_module", None)
     with session_scope() as session:
-        enabled = kit.enabled(session, user.tenant)
-    active = request.session.get("active_module")
-    if active == "base" or active in enabled:
-        return RedirectResponse(_home_href(active or "base"), status_code=303)
-    for mid in ("base", "wiki", "sale"):
-        if mid in enabled:
-            return RedirectResponse(_home_href(mid), status_code=303)
-    return RedirectResponse(_home_href("base"), status_code=303)
+        apps = kit.workbench_apps(session, user)
+    return kit.render(request, "home.html", {"apps": apps})
 
 
 @app.get("/logout")
@@ -245,7 +237,23 @@ def api_registry_catalog(request: Request):
     tenant = int(user.tenant) if user is not None else kit.tenant()
     with session_scope() as session:
         enabled = kit.enabled(session, tenant)
-    return registry_catalog(enabled, user=user)
+        allowed = None
+        if user is not None:
+            from modoor.platform.services import list_services
+
+            extra = {
+                str(svc.get("module_id") or svc.get("service_id") or "")
+                for svc in list_services()
+            }
+            extra.discard("")
+            allowed = base_domain.allowed_modules_for_user(
+                session,
+                kit.ctx(user),
+                user_id=user.id,
+                enabled=enabled,
+                extra_module_ids=extra,
+            )
+    return registry_catalog(enabled, user=user, allowed_modules=allowed)
 
 
 @app.get("/api/shell/modules")
@@ -253,7 +261,8 @@ def api_shell_modules(request: Request):
     user = kit.require_user(request)
     with session_scope() as session:
         enabled = kit.enabled(session, user.tenant)
-    return registry_catalog(enabled, user=user)
+        allowed = kit.allowed_modules_for(session, user, enabled)
+    return registry_catalog(enabled, user=user, allowed_modules=allowed)
 
 
 @app.post("/auth/switch")
@@ -264,8 +273,12 @@ def switch_tenant_form(request: Request, tenant_id: int = Form(...)):
             session, base_id=user.base_id, tenant_id=int(tenant_id)
         )
         request.session["user_id"] = switched.id
-        request.session["active_module"] = "base"
-    return RedirectResponse(_home_href("base"), status_code=303)
+        mid, href = kit.landing_for_user(session, switched)
+        if mid:
+            request.session["active_module"] = mid
+        else:
+            request.session.pop("active_module", None)
+    return RedirectResponse(href, status_code=303)
 
 
 @app.get("/go/{module_id}")
@@ -275,11 +288,27 @@ def launch_module(request: Request, module_id: str):
     if not meta:
         raise HTTPException(status_code=404, detail="module not found")
 
-    if meta.get("source") != "external":
-        with session_scope() as session:
-            enabled = kit.enabled(session, user.tenant)
-        if module_id not in enabled and module_id != "base":
-            raise HTTPException(status_code=404, detail="module disabled")
+    with session_scope() as session:
+        enabled = kit.enabled(session, user.tenant)
+        if meta.get("source") != "external":
+            if module_id not in enabled and module_id != "base":
+                raise HTTPException(status_code=404, detail="module disabled")
+        from modoor.platform.services import list_services
+
+        extra = {
+            str(svc.get("module_id") or svc.get("service_id") or "")
+            for svc in list_services()
+        }
+        extra.discard("")
+        allowed = base_domain.allowed_modules_for_user(
+            session,
+            kit.ctx(user),
+            user_id=user.id,
+            enabled=enabled,
+            extra_module_ids=extra,
+        )
+        if allowed is not None and module_id not in allowed:
+            raise HTTPException(status_code=403, detail="module not permitted")
 
     target = resolve_home(module_id, meta)
     if meta.get("kind") == "external" or meta.get("source") == "external":

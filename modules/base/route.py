@@ -50,9 +50,8 @@ class TeamUpdate(BaseModel):
 
 
 class RoleCreate(BaseModel):
-    code: str
     name: str
-    app_id: str | None = None
+    code: str | None = None
     description: str | None = None
 
 
@@ -225,7 +224,6 @@ def api_roles_bundle(request: Request) -> dict[str, Any]:
     with session_scope() as session:
         roles = base_domain.list_roles(session, ctx, limit=200)["items"]
         users = base_domain.list_users(session, ctx, limit=200)["items"]
-        apps = base_domain.list_apps(session, ctx, limit=200)["items"]
         assignments = {
             u["id"]: base_domain.list_user_roles(session, ctx, user_id=u["id"])["roles"]
             for u in users
@@ -238,7 +236,6 @@ def api_roles_bundle(request: Request) -> dict[str, Any]:
     return {
         "roles": roles,
         "users": users,
-        "apps": apps,
         "assignments": assignments,
         "role_nodes": role_nodes,
         "ability_catalog": catalog,
@@ -275,9 +272,8 @@ def api_create_role(request: Request, body: RoleCreate) -> dict[str, Any]:
             row = base_domain.create_role(
                 session,
                 ctx_of(user),
-                code=body.code,
                 name=body.name,
-                app_id=body.app_id,
+                code=body.code,
                 description=body.description,
             )
         return {"ok": True, "role": row}

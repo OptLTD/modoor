@@ -12,7 +12,7 @@ from modoor.platform.bootstrap import bootstrap
 from modoor.runtime.jobs import Job, run_pending
 from modoor.runtime.auth import resolve_ctx
 from modules.doc import domain as doc_domain
-from modules.doc.extract import extract_bytes, preview_excel
+from modules.doc.extract import extract_bytes, preview_excel, sanitize_pg_text, _clip
 from tests.conftest import configure_test_db
 
 
@@ -289,4 +289,18 @@ def test_preview_excel_filters():
     )
     assert all(row[0] in {"open", "wait"} and row[1] == "SH" for row in both["rows"])
     assert len(both["rows"]) == 40
+
+
+def test_sanitize_strips_nul_for_postgres():
+    dirty = "KEHOMQ8A\x000013 Sep 3\x00Oct 3"
+    assert "\x00" not in sanitize_pg_text(dirty)
+    assert _clip(dirty) == "KEHOMQ8A0013 Sep 3Oct 3"
+    ctx = resolve_ctx(get_settings())
+    with session_scope() as session:
+        created = doc_domain.create_text_asset(
+            session, ctx, title="nul-invoice", text=dirty
+        )
+        asset = doc_domain.get_asset(session, ctx, asset_id=created["id"])
+        assert "\x00" not in (asset.get("text") or "")
+        assert "KEHOMQ8A0013" in (asset.get("text") or "")
 

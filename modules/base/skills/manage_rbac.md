@@ -30,14 +30,14 @@ confirmations:
 
 - **App**: application under a tenant (`code` unique per tenant).
 - **User**: account under a tenant (`username` unique per tenant).
-- **Role**: permission bundle; optional `app_id` makes it app-scoped; omit `app_id` for tenant-wide.
+- **Role**: tenant-wide permission bundle; `code` is a uukey (`role#####`) unless you pass an explicit code (e.g. bootstrap `admin`).
 - **Assignment**: user ids stored as JSON on `role.users`; ability codes as `role.nodes`.
 
 ## Typical flow
 
 1. `base.create_app(code="crm", name="CRM")`
 2. `base.create_user(username="alice", realname="Alice")`
-3. `base.create_role(code="admin", name="Admin", app_id=<app.id>)` or without app_id
+3. `base.create_role(name="Admin")` — omit code to auto-generate
 4. `base.assign_role(user_id=..., role_id=...)`
 5. Verify with `base.list_user_roles(user_id=...)`
 
@@ -45,4 +45,3 @@ confirmations:
 
 - Do not invent SQL or bypass MCP.
 - Deletes / revoke require `needs_confirmation` then resubmit with token.
-- Cannot delete an app while roles still reference it — delete or reassign roles first.

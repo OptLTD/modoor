@@ -145,29 +145,17 @@ def _page_to_dict(page: WikiPage, *, include_body: bool = True) -> dict[str, Any
 
 
 def _scope_projects(ctx: Ctx):
-    stmt = select(WikiProject).where(WikiProject.tenant == ctx.tenant)
-    if ctx.team_id is not None:
-        stmt = stmt.where(
-            (WikiProject.team_id.is_(None)) | (WikiProject.team_id == ctx.team_id)
-        )
-    return stmt
+    return select(WikiProject).where(WikiProject.tenant == ctx.tenant)
 
 
 def _scope_pages(ctx: Ctx):
-    stmt = select(WikiPage).where(WikiPage.tenant == ctx.tenant)
-    if ctx.team_id is not None:
-        stmt = stmt.where(
-            (WikiPage.team_id.is_(None)) | (WikiPage.team_id == ctx.team_id)
-        )
-    return stmt
+    return select(WikiPage).where(WikiPage.tenant == ctx.tenant)
 
 
 def _get_project(session: Session, ctx: Ctx, project_id: str) -> WikiProject:
     project = session.get(WikiProject, project_id)
     if project is None or project.tenant != ctx.tenant:
         raise AppError("not_found", "Wiki project not found")
-    if ctx.team_id is not None and project.team_id is not None and project.team_id != ctx.team_id:
-        raise AppError("permission_denied", "Project outside team scope")
     return project
 
 
@@ -175,8 +163,6 @@ def _get_page(session: Session, ctx: Ctx, page_id: str) -> WikiPage:
     page = session.get(WikiPage, page_id)
     if page is None or page.tenant != ctx.tenant:
         raise AppError("not_found", "Wiki page not found")
-    if ctx.team_id is not None and page.team_id is not None and page.team_id != ctx.team_id:
-        raise AppError("permission_denied", "Page outside team scope")
     return page
 
 

@@ -7,24 +7,10 @@
       <aside class="roles-left panel">
         <header class="pane-head">
           <h1>{{ t('base.roles') }}</h1>
-          <button type="button" class="btn primary" @click="showCreate = !showCreate">
-            {{ showCreate ? t('base.collapse') : t('base.create') }}
+          <button type="button" class="btn primary" @click="openCreate">
+            {{ t('base.create') }}
           </button>
         </header>
-
-        <form v-if="showCreate" class="create-form" @submit.prevent="onCreate">
-          <label>Code <input v-model="form.code" required placeholder="admin" /></label>
-          <label>Name <input v-model="form.name" required /></label>
-          <label>
-            App
-            <select v-model="form.app_id">
-              <option value="">(tenant-wide)</option>
-              <option v-for="a in apps" :key="a.id" :value="a.id">{{ a.code }} — {{ a.name }}</option>
-            </select>
-          </label>
-          <label>Description <input v-model="form.description" /></label>
-          <button class="btn primary" type="submit">Create</button>
-        </form>
 
         <ul class="role-list">
           <li
@@ -54,10 +40,9 @@
               <h1>{{ selected.name }}</h1>
             </div>
             <div class="head-actions">
-              <button type="button" class="btn" :disabled="saving" @click="selectAllModule">
-                {{ t('base.selectAllVisible') }}
+              <button type="button" class="btn" :disabled="saving || !flatVisible.length" @click="toggleSelectVisible">
+                {{ allVisibleSelected ? t('base.clear') : t('base.selectAllVisible') }}
               </button>
-              <button type="button" class="btn" :disabled="saving" @click="clearDraft">{{ t('base.clear') }}</button>
               <button
                 type="button"
                 class="btn primary"
@@ -66,13 +51,30 @@
               >
                 {{ saving ? t('base.saving') : t('base.saveAbilities') }}
               </button>
-              <button
-                type="button"
-                class="btn danger"
-                @click="onDelete(selected.id, selected.code)"
-              >
-                {{ t('base.delete') }}
-              </button>
+              <div class="click-dropdown" :class="{ open: moreOpen }" @click.stop>
+                <button
+                  type="button"
+                  class="btn"
+                  :aria-expanded="moreOpen"
+                  @click="moreOpen = !moreOpen"
+                >
+                  {{ t('base.more') }}
+                  <span class="click-caret" aria-hidden="true">▾</span>
+                </button>
+                <div v-if="moreOpen" class="click-dropdown-menu" role="menu">
+                  <button type="button" role="menuitem" @click="onMoreAssign">
+                    {{ t('base.assignUsers') }}
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    class="danger"
+                    @click="onMoreDelete"
+                  >
+                    {{ t('base.delete') }}
+                  </button>
+                </div>
+              </div>
             </div>
           </header>
 
@@ -120,18 +122,6 @@
             </section>
             <p v-if="!filteredCatalog.length" class="muted empty">{{ t('base.noAbilities') }}</p>
           </div>
-
-          <section class="assign-block">
-            <h2>{{ t('base.assignUsers') }}</h2>
-            <form class="assign-form" @submit.prevent="onAssign">
-              <select v-model="assign.user_id" required>
-                <option v-for="u in users" :key="u.id" :value="u.id">
-                  {{ u.username }} — {{ u.realname }}
-                </option>
-              </select>
-              <button class="btn primary" type="submit">Assign</button>
-            </form>
-          </section>
         </template>
 
         <div v-else class="empty-right muted">
@@ -139,11 +129,89 @@
         </div>
       </main>
     </div>
+
+    <div v-if="showCreate" class="modal-mask" @click.self="closeCreate">
+      <div class="modal">
+        <header class="modal-head">
+          <strong>{{ t('base.createRole') }}</strong>
+          <button type="button" class="link" @click="closeCreate">{{ t('widget.close') }}</button>
+        </header>
+        <form class="form" @submit.prevent="onCreate">
+          <label>
+            {{ t('base.roleName') }}
+            <input v-model="form.name" required autocomplete="off" />
+          </label>
+          <label>
+            {{ t('base.roleDescription') }}
+            <input v-model="form.description" autocomplete="off" />
+          </label>
+          <p v-if="createError" class="error">{{ createError }}</p>
+          <div class="modal-actions">
+            <button type="button" class="btn" @click="closeCreate">{{ t('widget.cancel') }}</button>
+            <button type="submit" class="btn primary" :disabled="creating">
+              {{ creating ? t('widget.saving') : t('widget.formCreate') }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div v-if="showAssign" class="modal-mask" @click.self="closeAssign">
+      <div class="modal assign-modal">
+        <header class="modal-head">
+          <strong>{{ t('base.assignUsers') }}</strong>
+          <button type="button" class="link" @click="closeAssign">{{ t('widget.close') }}</button>
+        </header>
+        <form class="form assign-form" @submit.prevent="onAssign">
+          <div class="perm-toolbar">
+            <input
+              v-model="assignKeyword"
+              type="search"
+              class="perm-search"
+              :placeholder="t('base.filterUsers')"
+            />
+            <span class="muted">
+              {{ t('base.selectedCount', { n: pickedUserIds.length, total: filteredAssignUsers.length }) }}
+            </span>
+          </div>
+          <div class="assign-user-grid">
+            <label
+              v-for="u in filteredAssignUsers"
+              :key="u.id"
+              class="assign-user-item"
+            >
+              <input
+                type="checkbox"
+                :checked="pickedUserSet.has(u.id)"
+                @change="togglePickedUser(u.id, ($event.target as HTMLInputElement).checked)"
+              />
+              <span class="assign-user-text">
+                <span class="assign-user-name">{{ u.realname || u.username }}</span>
+                <code v-if="u.realname" class="muted">{{ u.username }}</code>
+              </span>
+            </label>
+          </div>
+          <p v-if="!users.length" class="muted">{{ t('base.noMatchingUsers') }}</p>
+          <p v-else-if="!filteredAssignUsers.length" class="muted">{{ t('base.noMatchingUsers') }}</p>
+          <p v-if="assignError" class="error">{{ assignError }}</p>
+          <div class="modal-actions">
+            <button type="button" class="btn" @click="closeAssign">{{ t('widget.cancel') }}</button>
+            <button
+              type="submit"
+              class="btn primary"
+              :disabled="assigning || !assignDirty"
+            >
+              {{ assigning ? t('widget.saving') : t('widget.save') }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import {
   useI18n,
   localizedAppLabel,
@@ -164,7 +232,6 @@ type Role = {
   id: string
   code: string
   name: string
-  app_id?: string | null
   description?: string | null
 }
 
@@ -179,7 +246,6 @@ const { t, locale } = useI18n()
 const error = ref('')
 const roles = ref<Role[]>([])
 const users = ref<User[]>([])
-const apps = ref<{ id: string; code: string; name: string }[]>([])
 const assignments = ref<Record<string, { id: string; code: string }[]>>({})
 const roleNodes = ref<Record<string, string[]>>({})
 const catalog = ref<AbilityGroup[]>([])
@@ -189,14 +255,51 @@ const draftAbilities = ref<string[]>([])
 const savedSnapshot = ref('')
 const saving = ref(false)
 const showCreate = ref(false)
+const creating = ref(false)
+const createError = ref('')
+const showAssign = ref(false)
+const assigning = ref(false)
+const assignError = ref('')
+const moreOpen = ref(false)
 const permKeyword = ref('')
-const form = reactive({ code: '', name: '', app_id: '', description: '' })
-const assign = reactive({ user_id: 0 as number, role_id: '' })
+const assignKeyword = ref('')
+const form = reactive({ name: '', description: '' })
+const pickedUserIds = ref<number[]>([])
 
 const selected = computed(() => roles.value.find((r) => r.id === selectedId.value) || null)
 const draftSet = computed(() => new Set(draftAbilities.value))
 const dirty = computed(() => JSON.stringify([...draftAbilities.value].sort()) !== savedSnapshot.value)
 const flatCatalog = computed(() => catalog.value.flatMap((g) => g.abilities))
+const flatVisible = computed(() => filteredCatalog.value.flatMap((g) => g.abilities))
+const allVisibleSelected = computed(
+  () => flatVisible.value.length > 0 && flatVisible.value.every((a) => draftSet.value.has(a)),
+)
+
+const holders = computed(() => {
+  if (!selected.value) return []
+  const rid = selected.value.id
+  return users.value.filter((u) => (assignments.value[u.id] || []).some((r) => r.id === rid))
+})
+
+const holderIdSet = computed(() => new Set(holders.value.map((u) => u.id)))
+
+const pickedUserSet = computed(() => new Set(pickedUserIds.value))
+
+const assignDirty = computed(() => {
+  const next = [...pickedUserIds.value].sort((a, b) => a - b)
+  const prev = [...holderIdSet.value].sort((a, b) => a - b)
+  return JSON.stringify(next) !== JSON.stringify(prev)
+})
+
+const filteredAssignUsers = computed(() => {
+  const q = assignKeyword.value.trim().toLowerCase()
+  if (!q) return users.value
+  return users.value.filter((u) => {
+    const name = (u.realname || '').toLowerCase()
+    const user = (u.username || '').toLowerCase()
+    return name.includes(q) || user.includes(q)
+  })
+})
 
 const filteredCatalog = computed(() => {
   const q = permKeyword.value.trim().toLowerCase()
@@ -225,20 +328,8 @@ function abilityLabel(g: AbilityGroup, code: string) {
   return localizedEntityLabel(g.i18n, { id: code, label: code }, locale.value, code)
 }
 
-const holders = computed(() => {
-  if (!selected.value) return []
-  const rid = selected.value.id
-  return users.value.filter((u) => (assignments.value[u.id] || []).some((r) => r.id === rid))
-})
-
-function appLabel(appId: string) {
-  const a = apps.value.find((x) => x.id === appId)
-  return a ? a.code : appId.slice(0, 8)
-}
-
 function selectRole(id: string) {
   selectedId.value = id
-  assign.role_id = id
   const abs = [...(roleNodes.value[id] || [])].sort()
   draftAbilities.value = abs
   savedSnapshot.value = JSON.stringify(abs)
@@ -272,8 +363,31 @@ function selectAllModule() {
   draftAbilities.value = [...set].sort()
 }
 
-function clearDraft() {
-  draftAbilities.value = []
+function clearVisible() {
+  const visible = new Set(flatVisible.value)
+  draftAbilities.value = draftAbilities.value.filter((a) => !visible.has(a))
+}
+
+function toggleSelectVisible() {
+  if (allVisibleSelected.value) clearVisible()
+  else selectAllModule()
+}
+
+function onMoreAssign() {
+  moreOpen.value = false
+  openAssign()
+}
+
+function onMoreDelete() {
+  moreOpen.value = false
+  if (!selected.value) return
+  void onDelete(selected.value.id, selected.value.code)
+}
+
+function onDocPointer(e: Event) {
+  const el = e.target as HTMLElement | null
+  if (el?.closest?.('.click-dropdown')) return
+  moreOpen.value = false
 }
 
 async function reload() {
@@ -282,11 +396,9 @@ async function reload() {
     const res = await rolesBundle()
     roles.value = res.roles
     users.value = res.users
-    apps.value = res.apps
     assignments.value = res.assignments
     roleNodes.value = res.role_nodes || {}
     catalog.value = res.ability_catalog?.modules || []
-    if (!assign.user_id && users.value[0]) assign.user_id = users.value[0].id
     const keep = selectedId.value && roles.value.some((r) => r.id === selectedId.value)
     if (keep) selectRole(selectedId.value)
     else if (roles.value[0]) selectRole(roles.value[0].id)
@@ -300,19 +412,78 @@ async function reload() {
   }
 }
 
+function openCreate() {
+  form.name = form.description = ''
+  createError.value = ''
+  showCreate.value = true
+}
+
+function closeCreate() {
+  if (creating.value) return
+  showCreate.value = false
+  createError.value = ''
+}
+
 async function onCreate() {
+  creating.value = true
+  createError.value = ''
   try {
-    await createRole({
-      code: form.code,
+    const created = await createRole({
       name: form.name,
-      app_id: form.app_id || undefined,
       description: form.description || undefined,
     })
-    form.code = form.name = form.app_id = form.description = ''
+    form.name = form.description = ''
     showCreate.value = false
     await reload()
+    if (created.role?.id) selectRole(created.role.id)
   } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e)
+    createError.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    creating.value = false
+  }
+}
+
+function openAssign() {
+  if (!selected.value) return
+  pickedUserIds.value = holders.value.map((u) => u.id)
+  assignKeyword.value = ''
+  assignError.value = ''
+  showAssign.value = true
+}
+
+function closeAssign() {
+  if (assigning.value) return
+  showAssign.value = false
+  assignError.value = ''
+}
+
+function togglePickedUser(id: number, on: boolean) {
+  const set = new Set(pickedUserIds.value)
+  if (on) set.add(id)
+  else set.delete(id)
+  pickedUserIds.value = [...set]
+}
+
+async function onAssign() {
+  if (!selected.value || !assignDirty.value) return
+  assigning.value = true
+  assignError.value = ''
+  try {
+    const roleId = selected.value.id
+    const next = pickedUserSet.value
+    const prev = holderIdSet.value
+    for (const userId of next) {
+      if (!prev.has(userId)) await assignRole(userId, roleId)
+    }
+    for (const userId of prev) {
+      if (!next.has(userId)) await revokeRole(userId, roleId)
+    }
+    showAssign.value = false
+    await reload()
+  } catch (e) {
+    assignError.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    assigning.value = false
   }
 }
 
@@ -347,21 +518,15 @@ async function onSaveAbilities() {
   }
 }
 
-async function onAssign() {
-  if (!selected.value) return
-  try {
-    await assignRole(assign.user_id, selected.value.id)
-    await reload()
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e)
-  }
-}
-
-watch(selectedId, (id) => {
-  if (id) assign.role_id = id
+watch(selectedId, () => {
+  moreOpen.value = false
 })
 
-onMounted(reload)
+onMounted(() => {
+  document.addEventListener('pointerdown', onDocPointer)
+  void reload()
+})
+onUnmounted(() => document.removeEventListener('pointerdown', onDocPointer))
 </script>
 
 <style scoped>
@@ -414,32 +579,84 @@ onMounted(reload)
   flex-wrap: wrap;
   gap: 6px;
   justify-content: flex-end;
+  align-items: center;
 }
 
-.create-form {
-  display: grid;
-  gap: 8px;
-  margin-bottom: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--line);
-  flex-shrink: 0;
+.click-dropdown {
+  position: relative;
 }
 
-.create-form label {
-  display: grid;
+.click-dropdown > .btn {
+  display: inline-flex;
+  align-items: center;
   gap: 4px;
-  font-size: 0.85rem;
 }
 
-.create-form input,
-.create-form select,
+.click-caret {
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+.click-dropdown.open > .btn {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  background: #eef6f3;
+}
+
+.click-dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  min-width: 160px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel, #fff);
+  box-shadow: var(--shadow, 0 8px 24px #1c191724);
+  z-index: 20;
+  display: grid;
+  gap: 2px;
+}
+
+.click-dropdown-menu button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font: inherit;
+  cursor: pointer;
+  color: inherit;
+}
+
+.click-dropdown-menu button:hover {
+  background: #f8f4eb;
+}
+
+.click-dropdown-menu button.danger {
+  color: var(--danger, #a33b2b);
+}
+
 .perm-search,
-.assign-form select {
+.modal .form select,
+.modal .form > label > input {
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 7px 9px;
   font: inherit;
   background: #fff;
+}
+
+.modal .form > label {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+}
+
+.modal .form > label:last-of-type {
+  margin-bottom: 0;
 }
 
 .role-list {
@@ -560,35 +777,81 @@ onMounted(reload)
   text-overflow: ellipsis;
 }
 
-.assign-block {
-  flex-shrink: 0;
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-
-.assign-block h2 {
-  margin: 0 0 8px;
-  font-size: 1rem;
+.assign-modal {
+  width: min(640px, 92vw);
 }
 
 .assign-form {
   display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 8px;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  margin-top: 0px;
 }
 
-.assign-form select {
-  flex: 1;
-  min-width: 0;
+.assign-form .perm-toolbar {
+  margin-bottom: 0;
 }
 
-.assignees {
+.assign-user-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px 12px;
+  max-height: min(420px, 55vh);
+  overflow: auto;
+  padding: 6px 2px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel) 90%, #f8f4eb);
+}
+
+.assign-user-item {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  flex-direction: row;
   align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  min-width: 0;
+  border-radius: 4px;
+}
+
+.assign-user-item input[type='checkbox'] {
+  flex: 0 0 auto;
+  margin: 0;
+  width: 1rem;
+  height: 1rem;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  accent-color: var(--accent, #3b6d11);
+}
+
+.assign-user-text {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.assign-user-name {
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assign-user-text code {
+  font-size: 0.75rem;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 860px) {

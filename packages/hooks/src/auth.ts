@@ -17,10 +17,13 @@ export type AuthUser = {
 }
 
 export async function login(username: string, password: string) {
-  return post<{ ok: boolean; user: AuthUser }>('/api/auth/login', {
-    username,
-    password,
-  })
+  return post<{ ok: boolean; user: AuthUser; module?: string; home?: string }>(
+    '/api/auth/login',
+    {
+      username,
+      password,
+    },
+  )
 }
 
 export async function fetchProfile() {
@@ -31,9 +34,12 @@ export async function fetchProfile() {
 export const fetchMe = fetchProfile
 
 export async function switchTenant(tenantId: number | string) {
-  return post<{ ok: boolean; user: AuthUser }>('/api/auth/switch', {
-    tenant_id: Number(tenantId),
-  })
+  return post<{ ok: boolean; user: AuthUser; module?: string; home?: string }>(
+    '/api/auth/switch',
+    {
+      tenant_id: Number(tenantId),
+    },
+  )
 }
 
 export async function logout() {

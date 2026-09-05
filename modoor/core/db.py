@@ -392,6 +392,55 @@ def _backfill_login_profile(conn) -> None:
         )
 
 
+def _drop_constraints_mentioning(conn, table: str, column: str) -> None:
+    rows = conn.execute(
+        text(
+            """
+            SELECT c.conname
+            FROM pg_constraint c
+            JOIN pg_class t ON t.oid = c.conrelid
+            JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY (c.conkey)
+            WHERE t.relname = :t AND a.attname = :c
+            """
+        ),
+        {"t": table, "c": column},
+    ).all()
+    for (name,) in rows:
+        conn.execute(text(f'ALTER TABLE "{table}" DROP CONSTRAINT IF EXISTS "{name}"'))
+
+
+def _migrate_base_role(conn) -> None:
+    if not _table_exists(conn, "base_role"):
+        return
+    cols = _table_columns(conn, "base_role")
+    if "app_id" in cols or "app_scope" in cols:
+        if "app_id" in cols:
+            _drop_constraints_mentioning(conn, "base_role", "app_id")
+        if "app_scope" in cols:
+            _drop_constraints_mentioning(conn, "base_role", "app_scope")
+        # Collapse app-scoped duplicates onto tenant+code uniqueness.
+        conn.execute(
+            text(
+                """
+                DELETE FROM base_role a
+                USING base_role b
+                WHERE a.tenant = b.tenant
+                  AND a.code = b.code
+                  AND a.ctid > b.ctid
+                """
+            )
+        )
+        conn.execute(text('ALTER TABLE base_role DROP COLUMN IF EXISTS app_id'))
+        conn.execute(text('ALTER TABLE base_role DROP COLUMN IF EXISTS app_scope'))
+    for name in (
+        "uq_base_role_tenant_code_app",
+        "uq_base_roles_tenant_code_app",
+        "uq_base_role_tenant_app_code",
+    ):
+        conn.execute(text(f'ALTER TABLE base_role DROP CONSTRAINT IF EXISTS "{name}"'))
+    _ensure_unique_index(conn, "uq_base_role_tenant_code", "base_role", "tenant, code")
+
+
 def _ensure_columns(engine: Engine) -> None:
     with engine.begin() as conn:
         if _table_exists(conn, "doc_asset"):
@@ -482,5 +531,7 @@ def _ensure_columns(engine: Engine) -> None:
             _ensure_unique_index(
                 conn, "uq_base_team_tenant_uukey", "base_team", "tenant, uukey"
             )
+
+        _migrate_base_role(conn)
 
         _ensure_smallint_state(conn, "sale_order", sale=True)

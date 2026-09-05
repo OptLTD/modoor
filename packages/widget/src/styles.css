@@ -37,7 +37,7 @@ body,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 22px;
+  padding: 10px 8px;
   border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--panel) 88%, transparent);
   backdrop-filter: blur(8px);

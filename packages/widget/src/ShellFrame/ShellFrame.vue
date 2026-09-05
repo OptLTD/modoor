@@ -297,6 +297,14 @@ async function refresh() {
           ]
     inbox.value = []
     detectActive()
+    const visible = modules.value
+    if (
+      visible.length > 0 &&
+      !visible.some((m) => m.id === props.moduleId || m.id === activeModule.value)
+    ) {
+      location.href = '/'
+      return
+    }
   } catch {
     user.value = null
     modules.value = []
@@ -326,8 +334,8 @@ async function selectTenant(tn: TenantOption) {
     return
   }
   closeMenus()
-  await switchTenant(tn.id)
-  location.reload()
+  const res = await switchTenant(tn.id)
+  location.href = res.home || '/'
 }
 
 function onShellSearch() {

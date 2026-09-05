@@ -71,17 +71,22 @@ def extract_bytes(filename: str, data: bytes, mime: str = "") -> ExtractResult:
         return ExtractResult("", "error", str(exc)[:2000])
 
 
+def sanitize_pg_text(text: str) -> str:
+    """Postgres text/varchar cannot store NUL (0x00); PDF extract often emits them."""
+    return (text or "").replace("\x00", "")
+
+
 def _clip(text: str) -> str:
-    return (text or "").strip()[:MAX_TEXT_CHARS]
+    return sanitize_pg_text(text).strip()[:MAX_TEXT_CHARS]
 
 
 def _decode_text(data: bytes) -> str:
     for enc in ("utf-8", "utf-8-sig", "gb18030", "latin-1"):
         try:
-            return data.decode(enc)[:MAX_TEXT_CHARS]
+            return sanitize_pg_text(data.decode(enc))[:MAX_TEXT_CHARS]
         except UnicodeDecodeError:
             continue
-    return data.decode("utf-8", errors="replace")[:MAX_TEXT_CHARS]
+    return sanitize_pg_text(data.decode("utf-8", errors="replace"))[:MAX_TEXT_CHARS]
 
 
 def _ocr_enabled() -> bool:

@@ -328,7 +328,6 @@
             v-for="(row, i) in rows"
             :key="rowKey(row) || i"
             class="data-row"
-            @dblclick="onEdit(row)"
           >
             <td
               class="sticky-col sticky-check"

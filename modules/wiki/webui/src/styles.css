@@ -53,8 +53,8 @@ a {
 .top {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 22px;
+  /* gap: 8px; */
+  padding: 0 8px;
   min-height: 52px;
   border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--panel) 88%, transparent);

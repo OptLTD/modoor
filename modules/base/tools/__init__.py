@@ -239,16 +239,14 @@ def delete_user(
 
 
 def create_role(
-    code: str,
     name: str,
-    app_id: str | None = None,
+    code: str | None = None,
     description: str | None = None,
 ) -> str:
-    """Create a role. Optional app_id scopes the role to an app; omit for tenant-wide."""
+    """Create a tenant-wide role. Omit code to auto-generate (role#####)."""
     args = {
         "code": code,
         "name": name,
-        "app_id": app_id,
         "description": description,
     }
 
@@ -258,7 +256,6 @@ def create_role(
             ctx,
             code=code,
             name=name,
-            app_id=app_id,
             description=description,
         )
 
@@ -268,16 +265,14 @@ def create_role(
 def update_role(
     role_id: str | None = None,
     code: str | None = None,
-    app_id: str | None = None,
     name: str | None = None,
     description: str | None = None,
     active: bool | None = None,
 ) -> str:
-    """Update a role (by role_id, or code [+ app_id for app-scoped roles])."""
+    """Update a role (by role_id or code)."""
     args = {
         "role_id": role_id,
         "code": code,
-        "app_id": app_id,
         "name": name,
         "description": description,
         "active": active,
@@ -289,7 +284,6 @@ def update_role(
             ctx,
             role_id=role_id,
             code=code,
-            app_id=app_id,
             name=name,
             description=description,
             active=active,
@@ -301,29 +295,22 @@ def update_role(
 def get_role(
     role_id: str | None = None,
     code: str | None = None,
-    app_id: str | None = None,
 ) -> str:
-    """Get a role by id or code (+ optional app_id)."""
-    args = {"role_id": role_id, "code": code, "app_id": app_id}
+    """Get a role by id or code."""
+    args = {"role_id": role_id, "code": code}
 
     def _inner(session, ctx, _settings):
-        return base_domain.get_role(
-            session, ctx, role_id=role_id, code=code, app_id=app_id
-        )
+        return base_domain.get_role(session, ctx, role_id=role_id, code=code)
 
     return run_tool("base.get_role", args, _inner)
 
 
-def list_roles(
-    app_id: str | None = None, q: str | None = None, limit: int = 50
-) -> str:
-    """List roles; optionally filter by app_id."""
-    args = {"app_id": app_id, "q": q, "limit": limit}
+def list_roles(q: str | None = None, limit: int = 50) -> str:
+    """List roles in the current tenant."""
+    args = {"q": q, "limit": limit}
 
     def _inner(session, ctx, _settings):
-        return base_domain.list_roles(
-            session, ctx, app_id=app_id, q=q, limit=limit
-        )
+        return base_domain.list_roles(session, ctx, q=q, limit=limit)
 
     return run_tool("base.list_roles", args, _inner)
 
@@ -331,17 +318,14 @@ def list_roles(
 def delete_role(
     role_id: str | None = None,
     code: str | None = None,
-    app_id: str | None = None,
     confirmation_token: str | None = None,
 ) -> str:
     """Delete a role (high risk). Also removes assignments."""
-    confirm_args = {"role_id": role_id, "code": code, "app_id": app_id}
+    confirm_args = {"role_id": role_id, "code": code}
     args = {**confirm_args, "confirmation_token": confirmation_token}
 
     def _inner(session, ctx, settings):
-        role = base_domain.get_role(
-            session, ctx, role_id=role_id, code=code, app_id=app_id
-        )
+        role = base_domain.get_role(session, ctx, role_id=role_id, code=code)
         return _delete_with_confirm(
             tool="base.delete_role",
             confirm_args=confirm_args,
@@ -349,11 +333,10 @@ def delete_role(
                 "id": role["id"],
                 "code": role["code"],
                 "name": role["name"],
-                "app_id": role["app_id"],
             },
             confirmation_token=confirmation_token,
             do_delete=lambda s, c: base_domain.delete_role(
-                s, c, role_id=role_id, code=code, app_id=app_id
+                s, c, role_id=role_id, code=code
             ),
         )(session, ctx, settings)
 

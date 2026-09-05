@@ -19,6 +19,7 @@ from modoor.core.errors import AppError
 from modoor.core.settings import get_settings
 from modoor.runtime.jobs import enqueue
 from modules.doc.extract import MAX_TEXT_CHARS as _MAX_TEXT_CHARS
+from modules.doc.extract import sanitize_pg_text
 from modules.doc.jobs import register as register_extract_jobs
 from modules.doc.storage import BlobStore, get_blob_store
 
@@ -131,15 +132,13 @@ def _asset_dict(row: DocAsset, *, include_text: bool = True, text_limit: int | N
 
 
 def _scope(ctx: Ctx):
-    return select(DocAsset).where(DocAsset.tenant == ctx.tenant, DocAsset.team_id == ctx.team_id)
+    return select(DocAsset).where(DocAsset.tenant == ctx.tenant)
 
 
 def _get_asset(session: Session, ctx: Ctx, asset_id: str) -> DocAsset:
     row = session.get(DocAsset, asset_id)
     if row is None or row.tenant != ctx.tenant:
         raise AppError("not_found", "Doc asset not found")
-    if row.team_id != ctx.team_id:
-        raise AppError("permission_denied", "Asset outside team scope")
     return row
 
 
@@ -190,11 +189,11 @@ def create_asset(
         type=store.backend,
         name=object_name,
         tags=_dumps_tags(tags),
-        text=(text or "")[:_MAX_TEXT_CHARS] if provided else "",
+        text=sanitize_pg_text(text or "")[:_MAX_TEXT_CHARS] if provided else "",
         text_status="ready" if provided else "pending",
         text_method="provided" if provided else "",
         text_error="",
-        note=(note or "").strip(),
+        note=sanitize_pg_text((note or "").strip()),
         created_by=ctx.user_id,
         updated_by=ctx.user_id,
     )
@@ -335,14 +334,14 @@ def apply_extract_job(session: Session, payload: dict[str, Any]) -> None:
         from modules.doc.extract import extract_bytes
 
         result = extract_bytes(row.filename, data, row.mime_type)
-        row.text = (result.text or "")[:_MAX_TEXT_CHARS]
+        row.text = sanitize_pg_text(result.text or "")[:_MAX_TEXT_CHARS]
         row.text_method = result.method or ""
-        row.text_error = result.error or ""
+        row.text_error = sanitize_pg_text(result.error or "")[:2000]
         row.text_status = "failed" if result.error and not (result.text or "").strip() else "ready"
         row.updated_at = _now()
     except Exception as exc:  # noqa: BLE001
         row.text_status = "failed"
-        row.text_error = str(exc)[:2000]
+        row.text_error = sanitize_pg_text(str(exc))[:2000]
         row.updated_at = _now()
 
 
@@ -367,9 +366,9 @@ def update_asset(
     if tags is not None:
         row.tags = _dumps_tags(tags)
     if note is not None:
-        row.note = note.strip()
+        row.note = sanitize_pg_text(note.strip())
     if text is not None:
-        row.text = text[:_MAX_TEXT_CHARS]
+        row.text = sanitize_pg_text(text)[:_MAX_TEXT_CHARS]
         row.text_status = "ready"
         row.text_method = "manual"
         row.text_error = ""

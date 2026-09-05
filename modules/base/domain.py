@@ -170,6 +170,10 @@ class SystemUser(Base):
         return self.login.realname if self.login is not None else ""
 
     @property
+    def display_name(self) -> str:
+        return (self.name or self.realname or self.username or "").strip() or "—"
+
+    @property
     def current(self) -> int | None:
         return self.login.current if self.login is not None else None
 
@@ -181,19 +185,12 @@ class SystemUser(Base):
 class SystemRole(Base):
     __tablename__ = "base_role"
     __table_args__ = (
-        UniqueConstraint(
-            "tenant", "app_scope", "code", name="uq_base_role_tenant_scope_code"
-        ),
+        UniqueConstraint("tenant", "code", name="uq_base_role_tenant_code"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     tenant: Mapped[int] = mapped_column(Integer, index=True)
     team_id: Mapped[int] = mapped_column(Integer, index=True)
-    app_id: Mapped[str | None] = mapped_column(
-        ForeignKey("base_app.id"), nullable=True, index=True
-    )
-    # "_tenant_" when app_id is null — makes uniqueness reliable on Postgres
-    app_scope: Mapped[str] = mapped_column(String(36), default="_tenant_", index=True)
     code: Mapped[str] = mapped_column(String(64), index=True)
     name: Mapped[str] = mapped_column(String(256))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -269,8 +266,10 @@ def _next_uukey(
     prefix: str,
     width: int = 5,
     tenant: int | None = None,
+    attr: str = "uukey",
 ) -> str:
-    stmt = select(model.uukey).where(model.uukey.like(f"{prefix}%"))
+    col = getattr(model, attr)
+    stmt = select(col).where(col.like(f"{prefix}%"))
     if tenant is not None and hasattr(model, "tenant"):
         stmt = stmt.where(model.tenant == tenant)
     max_n = 0
@@ -508,8 +507,8 @@ def _role_dict(row: SystemRole) -> dict[str, Any]:
         "id": row.id,
         "tenant": row.tenant,
         "team_id": row.team_id,
-        "app_id": row.app_id,
         "code": row.code,
+        "uukey": row.code,
         "name": row.name,
         "description": row.description,
         "users": _role_users(row),
@@ -522,9 +521,7 @@ def _role_dict(row: SystemRole) -> dict[str, Any]:
 
 
 def _scoped(stmt, ctx: Ctx, model):
-    stmt = stmt.where(model.tenant == ctx.tenant)
-    stmt = stmt.where(model.team_id == ctx.team_id)
-    return stmt
+    return stmt.where(model.tenant == ctx.tenant)
 
 
 def _tenant_dict(row: SystemTenant) -> dict[str, Any]:
@@ -736,20 +733,17 @@ def resolve_user_key(session: Session, ctx: Ctx, key: str | int) -> SystemUser:
 
 
 def _get_role(
-    session: Session, ctx: Ctx, *, role_id: str | None = None, code: str | None = None, app_id: str | None = None
+    session: Session, ctx: Ctx, *, role_id: str | None = None, code: str | None = None
 ) -> SystemRole:
     if role_id:
         row = session.get(SystemRole, role_id)
     elif code:
-        stmt = select(SystemRole).where(
-            SystemRole.tenant == ctx.tenant,
-            SystemRole.code == _norm_code(code),
+        row = session.scalar(
+            select(SystemRole).where(
+                SystemRole.tenant == ctx.tenant,
+                SystemRole.code == _norm_code(code),
+            )
         )
-        if app_id:
-            stmt = stmt.where(SystemRole.app_id == app_id)
-        else:
-            stmt = stmt.where(SystemRole.app_id.is_(None))
-        row = session.scalar(stmt)
     else:
         raise AppError("validation_error", "role_id or code is required")
     if row is None or row.tenant != ctx.tenant:
@@ -839,13 +833,6 @@ def delete_app(
     session: Session, ctx: Ctx, *, app_id: str | None = None, code: str | None = None
 ) -> dict[str, Any]:
     row = _get_app(session, ctx, app_id=app_id, code=code)
-    roles = session.scalars(select(SystemRole).where(SystemRole.app_id == row.id)).all()
-    if roles:
-        raise AppError(
-            "conflict",
-            "cannot delete app while roles still reference it",
-            details={"role_count": len(list(roles))},
-        )
     payload = _app_dict(row)
     session.delete(row)
     session.flush()
@@ -1240,30 +1227,37 @@ def create_role(
     session: Session,
     ctx: Ctx,
     *,
-    code: str,
     name: str,
-    app_id: str | None = None,
+    code: str | None = None,
     description: str | None = None,
 ) -> dict[str, Any]:
-    code = _norm_code(code)
     name = name.strip()
     if not name:
         raise AppError("validation_error", "name is required")
-    if app_id:
-        _get_app(session, ctx, app_id=app_id)
-    stmt = select(SystemRole).where(
-        SystemRole.tenant == ctx.tenant,
-        SystemRole.code == code,
-    )
-    stmt = stmt.where(SystemRole.app_id == app_id) if app_id else stmt.where(SystemRole.app_id.is_(None))
-    if session.scalar(stmt):
+    if code:
+        code = _norm_code(code)
+    else:
+        prefix, width = _serialno("base.role", default_prefix="role")
+        prefix = prefix.strip().lower() or "role"
+        code = _next_uukey(
+            session,
+            SystemRole,
+            prefix=prefix,
+            width=width,
+            tenant=ctx.tenant,
+            attr="code",
+        )
+    if session.scalar(
+        select(SystemRole).where(
+            SystemRole.tenant == ctx.tenant,
+            SystemRole.code == code,
+        )
+    ):
         raise AppError("conflict", f"role code already exists: {code}")
     row = SystemRole(
         id=str(uuid.uuid4()),
         tenant=ctx.tenant,
         team_id=ctx.team_id,
-        app_id=app_id,
-        app_scope=app_id or "_tenant_",
         code=code,
         name=name,
         description=description,
@@ -1283,12 +1277,11 @@ def update_role(
     *,
     role_id: str | None = None,
     code: str | None = None,
-    app_id: str | None = None,
     name: str | None = None,
     description: str | None = None,
     active: bool | None = None,
 ) -> dict[str, Any]:
-    row = _get_role(session, ctx, role_id=role_id, code=code, app_id=app_id)
+    row = _get_role(session, ctx, role_id=role_id, code=code)
     if name is None and description is None and active is None:
         raise AppError("validation_error", "provide name, description, and/or active")
     if name is not None:
@@ -1311,24 +1304,20 @@ def get_role(
     *,
     role_id: str | None = None,
     code: str | None = None,
-    app_id: str | None = None,
 ) -> dict[str, Any]:
-    return _role_dict(_get_role(session, ctx, role_id=role_id, code=code, app_id=app_id))
+    return _role_dict(_get_role(session, ctx, role_id=role_id, code=code))
 
 
 def list_roles(
     session: Session,
     ctx: Ctx,
     *,
-    app_id: str | None = None,
     q: str | None = None,
     limit: int = 50,
 ) -> dict[str, Any]:
     if limit < 1 or limit > 200:
         raise AppError("validation_error", "limit must be between 1 and 200")
     stmt = _scoped(select(SystemRole), ctx, SystemRole).order_by(SystemRole.code).limit(limit)
-    if app_id:
-        stmt = stmt.where(SystemRole.app_id == app_id)
     if q:
         like = f"%{q.strip()}%"
         stmt = stmt.where((SystemRole.code.ilike(like)) | (SystemRole.name.ilike(like)))
@@ -1342,9 +1331,8 @@ def delete_role(
     *,
     role_id: str | None = None,
     code: str | None = None,
-    app_id: str | None = None,
 ) -> dict[str, Any]:
-    row = _get_role(session, ctx, role_id=role_id, code=code, app_id=app_id)
+    row = _get_role(session, ctx, role_id=role_id, code=code)
     payload = _role_dict(row)
     session.delete(row)
     session.flush()
@@ -1401,6 +1389,68 @@ def list_user_roles(session: Session, ctx: Ctx, *, user_id: int) -> dict[str, An
     )
     roles = [_role_dict(r) for r in roles_rows if user.id in _role_users(r)]
     return {"user_id": user.id, "roles": roles, "count": len(roles)}
+
+
+def list_user_abilities(
+    session: Session, ctx: Ctx, *, user_id: int
+) -> dict[str, Any]:
+    """Effective abilities for a user = union of held role.nodes.
+
+    Role code ``admin`` is unrestricted (sees all enabled modules) even when nodes are empty.
+    """
+    roles = list_user_roles(session, ctx, user_id=user_id)["roles"]
+    if any(str(r.get("code") or "") == "admin" for r in roles):
+        return {
+            "user_id": user_id,
+            "unrestricted": True,
+            "abilities": [],
+            "roles": [r["code"] for r in roles],
+        }
+    abilities: set[str] = set()
+    for role in roles:
+        for node in role.get("nodes") or []:
+            code = str(node).strip()
+            if code:
+                abilities.add(code)
+    return {
+        "user_id": user_id,
+        "unrestricted": False,
+        "abilities": sorted(abilities),
+        "roles": [r["code"] for r in roles],
+    }
+
+
+def module_allowed_by_abilities(module_id: str, abilities: set[str] | list[str]) -> bool:
+    mid = str(module_id or "").strip()
+    if not mid:
+        return False
+    prefix = f"{mid}."
+    for raw in abilities:
+        code = str(raw).strip()
+        if not code:
+            continue
+        if code == mid or code.startswith(prefix):
+            return True
+    return False
+
+
+def allowed_modules_for_user(
+    session: Session,
+    ctx: Ctx,
+    *,
+    user_id: int,
+    enabled: set[str],
+    extra_module_ids: set[str] | None = None,
+) -> set[str] | None:
+    """Return module ids visible in the shell, or None when unrestricted (no filter)."""
+    access = list_user_abilities(session, ctx, user_id=user_id)
+    if access["unrestricted"]:
+        return None
+    abilities = set(access["abilities"])
+    candidates = set(enabled) | {"base"}
+    if extra_module_ids:
+        candidates |= set(extra_module_ids)
+    return {mid for mid in candidates if module_allowed_by_abilities(mid, abilities)}
 
 
 def list_ability_catalog(settings: Any | None = None) -> dict[str, Any]:

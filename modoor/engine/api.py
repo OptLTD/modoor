@@ -100,6 +100,9 @@ class SwitchTenantBody(BaseModel):
 @router.post("/api/auth/login")
 def api_login(request: Request, body: LoginBody) -> dict[str, Any]:
     try:
+        from modoor.web.kit import get_kit
+
+        shell = get_kit()
         with session_scope() as session:
             user = base_domain.authenticate_user(
                 session,
@@ -110,7 +113,17 @@ def api_login(request: Request, body: LoginBody) -> dict[str, Any]:
             )
             tenants = base_domain.list_login_tenants(session, base_id=user.base_id)
             request.session["user_id"] = user.id
-            return {"ok": True, "user": _user_payload(user, tenants=tenants)}
+            mid, href = shell.landing_for_user(session, user)
+            if mid:
+                request.session["active_module"] = mid
+            else:
+                request.session.pop("active_module", None)
+            return {
+                "ok": True,
+                "user": _user_payload(user, tenants=tenants),
+                "module": mid,
+                "home": href,
+            }
     except AppError as exc:
         raise HTTPException(status_code=401, detail=exc.message) from exc
 
@@ -130,6 +143,9 @@ def api_profile(request: Request) -> dict[str, Any]:
 def api_switch(request: Request, body: SwitchTenantBody) -> dict[str, Any]:
     user = _require_user(request)
     try:
+        from modoor.web.kit import get_kit
+
+        shell = get_kit()
         with session_scope() as session:
             row = base_domain.load_user(session, int(user.id))
             if row is None or not row.active:
@@ -139,8 +155,17 @@ def api_switch(request: Request, body: SwitchTenantBody) -> dict[str, Any]:
             )
             tenants = base_domain.list_login_tenants(session, base_id=switched.base_id)
             request.session["user_id"] = switched.id
-            request.session["active_module"] = "base"
-            return {"ok": True, "user": _user_payload(switched, tenants=tenants)}
+            mid, href = shell.landing_for_user(session, switched)
+            if mid:
+                request.session["active_module"] = mid
+            else:
+                request.session.pop("active_module", None)
+            return {
+                "ok": True,
+                "user": _user_payload(switched, tenants=tenants),
+                "module": mid,
+                "home": href,
+            }
     except AppError as exc:
         raise _err(exc) from exc
 

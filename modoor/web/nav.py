@@ -165,8 +165,16 @@ def profile_dict(user: Any | None) -> dict[str, Any] | None:
     }
 
 
-def switcher_items(enabled: set[str]) -> list[dict[str, Any]]:
-    """In-repo enabled modules + live-registered external apps."""
+def switcher_items(
+    enabled: set[str],
+    *,
+    allowed_modules: set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """In-repo enabled modules + live-registered external apps.
+
+    When ``allowed_modules`` is set, only those module ids are returned (ability filter).
+    ``None`` means unrestricted / no ability filter.
+    """
     from modoor.web.mount import join_web_mount
 
     catalog = get_ui_catalog()
@@ -179,6 +187,8 @@ def switcher_items(enabled: set[str]) -> list[dict[str, Any]]:
         if mid not in catalog:
             continue
         if mid not in enabled and mid != "base":
+            continue
+        if allowed_modules is not None and mid not in allowed_modules:
             continue
         meta = catalog[mid]
         if not meta.get("menus") and not meta.get("home") and not meta.get("entry"):
@@ -221,6 +231,8 @@ def switcher_items(enabled: set[str]) -> list[dict[str, Any]]:
         mid = svc.get("module_id") or svc.get("service_id")
         if not mid or mid in seen:
             continue
+        if allowed_modules is not None and mid not in allowed_modules:
+            continue
         href = f"{api_base}/go/{mid}"
         exports = (svc.get("manifest") or {}).get("exports") or {}
         arts = svc.get("artifacts") or {}
@@ -250,6 +262,7 @@ def registry_catalog(
     enabled: set[str],
     *,
     user: Any | None = None,
+    allowed_modules: set[str] | None = None,
 ) -> dict[str, Any]:
     """Catalog: tenant + profile + modules + aggregated MODULE_CONTRACT exports."""
     from modoor.platform.services import aggregated_exports
@@ -284,6 +297,6 @@ def registry_catalog(
         "profile": profile_dict(user),
         "modoor_url": base,
         "logout_url": f"{base}/logout",
-        "modules": switcher_items(enabled),
+        "modules": switcher_items(enabled, allowed_modules=allowed_modules),
         "exports": aggregated_exports(),
     }

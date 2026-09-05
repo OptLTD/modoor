@@ -79,8 +79,6 @@ def _get_order(session: Session, ctx: Ctx, order_id: str) -> SaleOrder:
     order = session.get(SaleOrder, order_id)
     if order is None or order.tenant != ctx.tenant:
         raise AppError("not_found", f"Order not found: {order_id}")
-    if ctx.team_id is not None and order.team_id is not None and order.team_id != ctx.team_id:
-        raise AppError("permission_denied", "Order outside team scope")
     return order
 
 

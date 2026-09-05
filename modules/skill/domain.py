@@ -219,12 +219,7 @@ def get_module_skill(
 
 
 def _scope_query(ctx: Ctx):
-    stmt = select(SkillItem).where(SkillItem.tenant == ctx.tenant)
-    if ctx.team_id is not None:
-        stmt = stmt.where(
-            SkillItem.team_id == ctx.team_id
-        )
-    return stmt
+    return select(SkillItem).where(SkillItem.tenant == ctx.tenant)
 
 
 def _get_custom(
@@ -251,8 +246,6 @@ def _get_custom(
 
     if row is None or row.tenant != ctx.tenant:
         raise AppError("not_found", "Custom skill not found")
-    if ctx.team_id is not None and row.team_id is not None and row.team_id != ctx.team_id:
-        raise AppError("permission_denied", "Skill outside team scope")
     return row
 
 

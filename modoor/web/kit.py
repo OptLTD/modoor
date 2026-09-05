@@ -81,6 +81,98 @@ class ShellKit:
     def enabled(self, session, tenant: int | None = None) -> set[str]:
         return enabled_module_ids(session, tenant if tenant is not None else self.tenant())
 
+    def allowed_modules_for(self, session, user: SystemUser, enabled: set[str] | None = None) -> set[str] | None:
+        enabled = enabled if enabled is not None else self.enabled(session, user.tenant)
+        from modoor.platform.services import list_services
+
+        extra = {
+            str(svc.get("module_id") or svc.get("service_id") or "")
+            for svc in list_services()
+        }
+        extra.discard("")
+        return base_domain.allowed_modules_for_user(
+            session,
+            self.ctx(user),
+            user_id=user.id,
+            enabled=enabled,
+            extra_module_ids=extra,
+        )
+
+    def first_usable_module(
+        self,
+        session,
+        user: SystemUser,
+        *,
+        enabled: set[str] | None = None,
+        allowed_modules: set[str] | None = ...,  # type: ignore[assignment]
+    ) -> str:
+        """First module in shell switcher order that the user may open."""
+        enabled = enabled if enabled is not None else self.enabled(session, user.tenant)
+        if allowed_modules is ...:
+            allowed_modules = self.allowed_modules_for(session, user, enabled)
+        items = switcher_items(enabled, allowed_modules=allowed_modules)
+        if items:
+            return str(items[0]["id"])
+        return "base"
+
+    def landing_for_user(
+        self,
+        session,
+        user: SystemUser,
+        *,
+        next_url: str | None = None,
+    ) -> tuple[str | None, str]:
+        """Pick (module_id, href) after login.
+
+        Default landing is the workbench at ``/``. Prefer ``next_url`` only when it
+        points at an allowed module (deep link); otherwise stay on the workbench.
+        """
+        from urllib.parse import urlparse
+
+        enabled = self.enabled(session, user.tenant)
+        allowed = self.allowed_modules_for(session, user, enabled)
+
+        raw = (next_url or "").strip()
+        if raw.startswith("http://") or raw.startswith("https://"):
+            path = urlparse(raw).path or "/"
+            if path in ("/", "/login"):
+                return None, "/"
+            mid = detect_module(path)
+            if mid and (allowed is None or mid in allowed):
+                return mid, raw
+        return None, "/"
+
+    def workbench_apps(
+        self,
+        session,
+        user: SystemUser,
+    ) -> list[dict[str, Any]]:
+        """Permission-filtered module cards for the `/` workbench."""
+        enabled = self.enabled(session, user.tenant)
+        allowed = self.allowed_modules_for(session, user, enabled)
+        apps: list[dict[str, Any]] = []
+        for item in switcher_items(enabled, allowed_modules=allowed):
+            i18n = item.get("i18n") or {}
+            zh = i18n.get("zh-CN") if isinstance(i18n, dict) else {}
+            en = i18n.get("en-US") if isinstance(i18n, dict) else {}
+            if not isinstance(zh, dict):
+                zh = {}
+            if not isinstance(en, dict):
+                en = {}
+            fallback = item.get("label") or item["id"]
+            title_zh = zh.get("app.label") or zh.get("label") or fallback
+            title_en = en.get("app.label") or en.get("label") or fallback
+            apps.append(
+                {
+                    "id": item["id"],
+                    "title": title_zh,
+                    "title_zh": title_zh,
+                    "title_en": title_en,
+                    "href": item.get("href") or item.get("path") or f"/go/{item['id']}",
+                }
+            )
+        return apps
+
     def user_initials(self, user: SystemUser | None) -> str:
         if user is None:
             return "?"
@@ -110,6 +202,7 @@ class ShellKit:
             enabled = self.enabled(session, active_tenant)
             tenants: list[dict[str, Any]] = []
             tenant_label = self.tenant_name()
+            allowed_modules: set[str] | None = None
             if user is not None:
                 tenants = base_domain.list_login_tenants(session, base_id=user.base_id)
                 for tn in tenants:
@@ -120,22 +213,79 @@ class ShellKit:
                     row = session.get(base_domain.SystemTenant, active_tenant)
                     if row is not None:
                         tenant_label = row.name
-        current_module = detect_module(request.url.path) or request.session.get(
-            "active_module"
-        )
-        if current_module and current_module not in enabled and current_module != "base":
-            current_module = "base"
+                allowed_modules = self.allowed_modules_for(session, user, enabled)
+
+            current_module = detect_module(request.url.path) or request.session.get(
+                "active_module"
+            )
+            if request.url.path in ("/", ""):
+                current_module = None
+            elif current_module and current_module not in enabled and current_module != "base":
+                current_module = None
+            if (
+                current_module
+                and allowed_modules is not None
+                and current_module not in allowed_modules
+            ):
+                current_module = None
+            switcher = switcher_items(enabled, allowed_modules=allowed_modules)
+
         if current_module:
             request.session["active_module"] = current_module
-        current_label = "Modoor"
-        meta = get_module_meta(current_module) if current_module else {}
-        if meta.get("label"):
-            current_label = meta["label"]
         else:
-            for item in switcher_items(enabled):
-                if item["id"] == current_module:
-                    current_label = item["label"]
-                    break
+            request.session.pop("active_module", None)
+
+        def _app_titles(item: dict[str, Any]) -> tuple[str, str]:
+            i18n = item.get("i18n") or {}
+            zh = i18n.get("zh-CN") if isinstance(i18n, dict) else {}
+            en = i18n.get("en-US") if isinstance(i18n, dict) else {}
+            if not isinstance(zh, dict):
+                zh = {}
+            if not isinstance(en, dict):
+                en = {}
+            fallback = str(item.get("label") or item.get("id") or "")
+            return (
+                str(zh.get("app.label") or zh.get("label") or fallback),
+                str(en.get("app.label") or en.get("label") or fallback),
+            )
+
+        switcher_view: list[dict[str, Any]] = []
+        for item in switcher:
+            zh_title, en_title = _app_titles(item)
+            switcher_view.append({**item, "label_zh": zh_title, "label_en": en_title})
+
+        brand_zh, brand_en = "工作台", "Workbench"
+        if current_module:
+            hit = next((m for m in switcher_view if m["id"] == current_module), None)
+            if hit:
+                brand_zh, brand_en = hit["label_zh"], hit["label_en"]
+            else:
+                meta = get_module_meta(current_module) or {}
+                zh_title, en_title = _app_titles(meta)
+                brand_zh = zh_title or str(meta.get("label") or current_module)
+                brand_en = en_title or brand_zh
+
+        menu_view: list[dict[str, Any]] = []
+        if current_module:
+            meta = get_module_meta(current_module) or {}
+            i18n = meta.get("i18n") or {}
+            zh_pack = i18n.get("zh-CN") if isinstance(i18n, dict) else {}
+            en_pack = i18n.get("en-US") if isinstance(i18n, dict) else {}
+            if not isinstance(zh_pack, dict):
+                zh_pack = {}
+            if not isinstance(en_pack, dict):
+                en_pack = {}
+            for item in module_menus(current_module):
+                mid = str(item.get("id") or "")
+                fallback = str(item.get("label") or mid)
+                menu_view.append(
+                    {
+                        **item,
+                        "label_zh": str(zh_pack.get(mid) or fallback),
+                        "label_en": str(en_pack.get(mid) or fallback),
+                    }
+                )
+
         ctx.update(
             {
                 "request": request,
@@ -147,9 +297,11 @@ class ShellKit:
                 "flash": request.session.pop("flash", None),
                 "enabled_modules": enabled,
                 "current_module": current_module,
-                "current_module_label": current_label,
-                "module_switcher": switcher_items(enabled),
-                "module_menus": module_menus(current_module) if current_module else [],
+                "current_module_label": brand_zh,
+                "current_module_label_zh": brand_zh,
+                "current_module_label_en": brand_en,
+                "module_switcher": switcher_view,
+                "module_menus": menu_view,
                 "inbox_messages": [],
             }
         )

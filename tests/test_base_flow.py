@@ -44,27 +44,24 @@ def test_app_user_role_assign():
     assert user["result"]["username"] == "alice"
     user_id = user["result"]["id"]
 
-    role = json.loads(
-        create_role(code="admin", name="Admin", app_id=app_id)
-    )
+    role = json.loads(create_role(name="Ops Lead"))
     assert role["status"] == "ok"
     role_id = role["result"]["id"]
+    assert str(role["result"]["code"]).startswith("role")
 
     assigned = json.loads(assign_role(user_id=user_id, role_id=role_id))
     assert assigned["status"] == "ok"
 
     roles = json.loads(list_user_roles(user_id=user_id))
     assert roles["result"]["count"] == 1
-    assert roles["result"]["roles"][0]["code"] == "admin"
+    assert roles["result"]["roles"][0]["id"] == role_id
 
-    # cannot delete app with roles
+    # roles are tenant-wide; deleting an app is unrelated
     blocked = json.loads(delete_app(app_id=app_id, confirmation_token=None))
-    # first call is needs_confirmation
     assert blocked["status"] == "needs_confirmation"
     token = blocked["confirmation_token"]
-    failed = json.loads(delete_app(app_id=app_id, confirmation_token=token))
-    assert failed["status"] == "error"
-    assert failed["error"]["code"] == "conflict"
+    deleted = json.loads(delete_app(app_id=app_id, confirmation_token=token))
+    assert deleted["status"] == "ok"
 
 
 def test_teams_hang_under_head():

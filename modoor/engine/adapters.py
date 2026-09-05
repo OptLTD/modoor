@@ -218,7 +218,6 @@ class SaleOrderAdapter(ModelAdapter):
         size = min(max(int(size or 50), 1), 500)
         terms = parse_query(query)
         base = select(SaleOrder).where(SaleOrder.tenant == ctx.tenant)
-        base = base.where(SaleOrder.team_id == ctx.team_id)
         base = self._apply_terms(base, terms)
 
         count = session.scalar(select(func.count()).select_from(base.subquery())) or 0

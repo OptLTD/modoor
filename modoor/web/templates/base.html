@@ -6,51 +6,48 @@
   <title>{% block title %}Modoor{% endblock %}</title>
   <style>
     :root {
-      --bg: #f6f3ee;
-      --ink: #1c1917;
-      --muted: #78716c;
-      --line: #e7e5e4;
-      --accent: #0f766e;
-      --card: #fffcf8;
-      --danger: #b91c1c;
+      --bg: #f3efe6;
+      --panel: #fffdf8;
+      --ink: #1c1914;
+      --muted: #6b6458;
+      --line: #d9d0c0;
+      --accent: #0f6a5a;
+      --card: #fffdf8;
+      --danger: #a33b2b;
+      --shadow: 0 12px 40px rgba(40, 30, 10, 0.08);
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      font-family: "IBM Plex Sans", "Source Han Sans SC", "Noto Sans SC", sans-serif;
       background:
-        radial-gradient(circle at top right, #d9f3ef 0, transparent 40%),
-        linear-gradient(180deg, #faf7f2, var(--bg));
+        radial-gradient(1200px 600px at 10% -10%, #e7f2ee 0%, transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, #f7e7d6 0%, transparent 50%),
+        var(--bg);
       color: var(--ink);
       min-height: 100vh;
     }
-    .topbar {
+
+    /* Header — match packages/widget ShellFrame (.top) */
+    .top {
       display: flex;
-      gap: 1rem;
-      align-items: stretch;
+      align-items: center;
       justify-content: space-between;
-      min-height: 3rem;
+      padding: 10px 8px;
       border-bottom: 1px solid var(--line);
-      flex-wrap: wrap;
-      background: rgba(255,252,248,0.92);
-    }
-    .topbar-left {
-      display: flex;
-      align-items: stretch;
-      gap: 0;
-      flex-wrap: wrap;
-      min-width: 0;
-      flex: 1;
+      background: color-mix(in srgb, var(--panel) 88%, transparent);
+      backdrop-filter: blur(8px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
     .shell-logo {
       display: inline-flex;
       align-items: center;
       flex-shrink: 0;
-      margin: 0 0.35rem 0 0.65rem;
       border-radius: 8px;
       overflow: hidden;
       line-height: 0;
-      align-self: center;
     }
     .shell-logo img {
       width: 32px;
@@ -58,95 +55,84 @@
       display: block;
       object-fit: cover;
     }
-
-    /* Brand = current module switcher; caret glued to bottom-right corner */
     .brand-wrap {
       position: relative;
-      display: flex;
-      align-items: stretch;
-      flex-shrink: 0;
     }
     .brand {
-      position: relative;
-      display: inline-flex;
-      align-items: center;
-      min-width: 5.25rem;
-      padding: 0.7rem 1.35rem 0.7rem 1rem;
-      margin: 0;
-      border: none;
-      border-right: 1px solid var(--line);
-      border-radius: 0.35rem 0 0 0;
-      background: #fff;
-      color: var(--ink);
       font-weight: 700;
-      font-size: 0.98rem;
-      line-height: 1.2;
+      letter-spacing: 0.04em;
+      font-size: 1.05rem;
+      border: 0;
+      background: none;
       cursor: pointer;
-      user-select: none;
+      font: inherit;
+      color: inherit;
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
     }
-    .brand:hover, .brand-wrap.open .brand { background: #fafafa; }
-    .brand-caret {
-      position: absolute;
-      right: 0;
-      bottom: 0;
-      width: 0;
-      height: 0;
-      border-style: solid;
-      border-width: 0 0 8px 8px;
-      border-color: transparent transparent var(--muted) transparent;
-      pointer-events: none;
+    .caret {
+      font-size: 0.75rem;
+      color: var(--muted);
     }
-    .brand-wrap.open .brand-caret {
-      border-color: transparent transparent var(--accent) transparent;
-    }
-    .brand-menu {
+    .switcher {
       display: none;
       position: absolute;
-      top: 100%;
+      top: calc(100% + 8px);
       left: 0;
-      width: max-content;
-      min-width: 100%;
-      background: #fff;
+      min-width: 80px;
+      background: var(--panel);
       border: 1px solid var(--line);
-      border-top: none;
-      z-index: 40;
-      padding: 0.25rem 0;
-      box-shadow: 0 8px 20px rgba(28, 25, 23, 0.08);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      padding: 6px;
+      z-index: 20;
     }
-    .brand-wrap.open .brand-menu { display: block; }
-    .brand-menu a {
-      display: block;
-      padding: 0.5rem 0.85rem;
+    .brand-wrap.open .switcher { display: block; }
+    .switcher-item {
+      width: 100%;
+      text-align: left;
+      border: 0;
+      background: transparent;
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font: inherit;
+      min-width: max-content;
       color: var(--ink);
       text-decoration: none;
-      font-size: 0.92rem;
-      white-space: nowrap;
+      font-size: 0.95rem;
     }
-    .brand-menu a:hover { background: #f5f5f4; color: var(--accent); }
-    .brand-menu a.active { font-weight: 600; background: #ecfdf5; }
-
-    /* Nav = current module menus only */
+    .switcher-item:hover,
+    .switcher-item.active {
+      background: #eef6f3;
+    }
     .nav {
       display: flex;
-      gap: 0.15rem;
+      gap: 14px;
+      flex: 1;
+      padding: 0 18px;
       flex-wrap: wrap;
       align-items: center;
-      padding: 0 0.5rem;
     }
     .nav a {
-      text-decoration: none;
       color: var(--muted);
-      padding: 0.35rem 0.7rem;
-      font-size: 0.92rem;
+      text-decoration: none;
+      font-size: 0.95rem;
     }
-    .nav a:hover, .nav a.active { color: var(--accent); }
-
-    /* Systray — Odoo-style: messages + tenant + avatar */
+    .nav a:hover,
+    .nav a.active {
+      color: var(--ink);
+      font-weight: 600;
+    }
     .systray {
       display: flex;
       align-items: stretch;
-      margin-left: auto;
-      padding-right: 0.35rem;
+      align-self: stretch;
+      margin: -10px 0 -10px auto;
     }
     .shell-search-wrap {
       display: flex;
@@ -176,11 +162,13 @@
       align-items: stretch;
     }
     .systray-btn {
+      position: relative;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 0.4rem;
       min-width: 2.75rem;
+      min-height: 100%;
       padding: 0 0.7rem;
       margin: 0;
       border: none;
@@ -194,18 +182,18 @@
     }
     .systray-btn:hover,
     .systray-item.open .systray-btn {
-      background: rgba(15, 118, 110, 0.08);
+      background: color-mix(in srgb, var(--accent) 10%, transparent);
       color: var(--ink);
     }
     .systray-icon {
-      width: 1.15rem;
-      height: 1.15rem;
+      width: 1.35rem;
+      height: 1.35rem;
       display: block;
       flex-shrink: 0;
     }
     .systray-badge {
       position: absolute;
-      top: 0.45rem;
+      top: 0.55rem;
       right: 0.35rem;
       min-width: 1rem;
       height: 1rem;
@@ -244,12 +232,12 @@
       top: 100%;
       right: 0;
       min-width: 14rem;
-      background: #fff;
+      background: var(--panel);
       border: 1px solid var(--line);
-      border-top: none;
-      z-index: 50;
+      border-radius: 0 0 10px 10px;
+      z-index: 30;
       padding: 0.35rem 0;
-      box-shadow: 0 10px 24px rgba(28, 25, 23, 0.1);
+      box-shadow: var(--shadow);
     }
     .systray-item.open .systray-menu { display: block; }
     .systray-menu.wide { min-width: 18rem; }
@@ -283,20 +271,28 @@
     }
     .systray-menu a:hover,
     .systray-menu button.menu-link:hover {
-      background: #f5f5f4;
+      background: #eef6f3;
       color: var(--accent);
     }
-    .systray-menu a.active { font-weight: 600; background: #ecfdf5; }
-    .systray-menu .sep {
-      height: 1px;
-      background: var(--line);
-      margin: 0.3rem 0;
+    .systray-menu a.active,
+    .systray-menu button.menu-link.active {
+      font-weight: 600;
+      background: #eef6f3;
     }
     .systray-empty {
       padding: 1.25rem 1rem;
       text-align: center;
       color: var(--muted);
       font-size: 0.88rem;
+    }
+    .systray-menu .sep {
+      height: 1px;
+      background: var(--line);
+      margin: 0.3rem 0;
+    }
+    .systray-menu-header.lang-head {
+      border-bottom: none;
+      padding-bottom: 0.2rem;
     }
     .systray-login {
       display: inline-flex;
@@ -313,6 +309,38 @@
     .meta { color: var(--muted); font-size: 0.9rem; }
     .flash { background: #ecfdf5; border: 1px solid #a7f3d0; padding: 0.75rem 1rem; margin-bottom: 1rem; }
     .error { background: #fef2f2; border: 1px solid #fecaca; color: var(--danger); padding: 0.75rem 1rem; margin-bottom: 1rem; }
+
+    .workbench-head { margin-bottom: 1.25rem; }
+    .workbench-head h1 { margin-bottom: 0.25rem; }
+    .workbench-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 0.85rem;
+    }
+    .workbench-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      padding: 1rem 1.05rem;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--card);
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .workbench-card:hover {
+      border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+      box-shadow: 0 8px 20px rgba(28, 25, 23, 0.06);
+    }
+    .workbench-card strong { font-size: 1.02rem; }
+    .workbench-empty {
+      padding: 2rem 1rem;
+      border: 1px dashed var(--line);
+      border-radius: 10px;
+      background: rgba(255, 252, 248, 0.7);
+      text-align: center;
+    }
     table { width: 100%; border-collapse: collapse; background: var(--card); margin-bottom: 1rem; }
     th, td { text-align: left; padding: 0.65rem 0.75rem; border-bottom: 1px solid var(--line); vertical-align: top; }
     th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
@@ -322,11 +350,12 @@
     form.inline { display: inline; }
     .form-grid { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); align-items: end; background: var(--card); border: 1px solid var(--line); padding: 1rem; margin-bottom: 1rem; }
     label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; color: var(--muted); }
-    input, select, textarea, button {
+    input, select, textarea {
       font: inherit; padding: 0.45rem 0.55rem; border: 1px solid var(--line); background: #fff; color: var(--ink);
     }
     textarea { min-height: 220px; width: 100%; }
-    button, .btn {
+    button.btn, .btn, form.form-grid button, form.inline button, main > form button {
+      font: inherit;
       background: var(--accent); color: #fff; border: none; cursor: pointer; text-decoration: none;
       display: inline-block; padding: 0.45rem 0.8rem;
     }
@@ -402,6 +431,11 @@
       padding: 0.78rem 1rem;
       border-radius: 8px;
       font-weight: 600;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      font: inherit;
     }
     .login-wrap .error {
       border-radius: 8px;
@@ -412,85 +446,85 @@
       text-align: center;
       font-size: 0.78rem;
     }
-
-    /* override global button styles for shell chrome */
-    .brand,
-    .systray-btn {
-      background: transparent;
-      color: inherit;
-      padding: inherit;
-      display: inline-flex;
-      justify-content: center;
-    }
-    /* .brand {
-      background: #fff;
-      color: var(--ink);
-      padding: 0.7rem 1.35rem 0.7rem 1rem;
-    } */
-    .brand:hover, .brand-wrap.open .brand { background: #fafafa; }
-    .systray-btn {
-      padding: 0 0.7rem;
-      color: var(--muted);
-      min-height: 100%;
-    }
-    .systray-btn:hover,
-    .systray-item.open .systray-btn {
-      background: rgba(15, 118, 110, 0.08);
-      color: var(--ink);
-    }
-    .systray-menu button.menu-link {
-      background: none;
-      color: var(--ink);
-      padding: 0.5rem 0.9rem;
-      display: block;
-      width: 100%;
-      text-align: left;
-    }
-    .systray-menu button.menu-link:hover {
-      background: #f5f5f4;
-      color: var(--accent);
-    }
   </style>
 </head>
 <body class="{% block body_class %}{% endblock %}">
   {% block shell %}
-  <div class="topbar">
-    <div class="topbar-left">
-      <a class="shell-logo" href="/" aria-label="Modoor">
-        <img src="/logo.png" alt="" width="32" height="32" />
-      </a>
-      {% if current_user %}
-      <div class="brand-wrap" id="brand-wrap">
-        <button type="button" class="brand" id="brand-btn" aria-haspopup="listbox" aria-expanded="false">
-          {{ current_module_label or 'Modoor' }}
-          <span class="brand-caret" aria-hidden="true"></span>
-        </button>
-        <div class="brand-menu" id="brand-menu" role="listbox">
-          {% for m in module_switcher %}
-            <a href="{{ m.href }}" role="option" class="{% if m.id == current_module %}active{% endif %}">{{ m.label }}</a>
-          {% endfor %}
-        </div>
-      </div>
-      <nav class="nav" aria-label="Menus">
-        {% for item in module_menus %}
-          <a href="{{ item.path }}" class="{% if request.url.path == item.path %}active{% endif %}">{{ item.label }}</a>
+  <header class="top">
+    <a class="shell-logo" href="/" aria-label="Modoor">
+      <img src="/logo.png" alt="" width="32" height="32" />
+    </a>
+    {% if current_user %}
+    <div class="brand-wrap" id="brand-wrap">
+      <button
+        type="button"
+        class="brand"
+        id="brand-btn"
+        aria-haspopup="listbox"
+        aria-expanded="false"
+        data-i18n-label
+        data-zh="{{ current_module_label_zh or '工作台' }}"
+        data-en="{{ current_module_label_en or 'Workbench' }}"
+      >
+        <span class="brand-text">{{ current_module_label_zh or '工作台' }}</span>
+        <span class="caret" aria-hidden="true">▾</span>
+      </button>
+      <div class="switcher" id="brand-menu" role="listbox">
+        <a href="/" role="option" class="switcher-item {% if not current_module %}active{% endif %}" data-i18n="workbench">工作台</a>
+        {% for m in module_switcher %}
+          <a
+            href="{{ m.href }}"
+            role="option"
+            class="switcher-item {% if m.id == current_module %}active{% endif %}"
+            data-i18n-label
+            data-zh="{{ m.label_zh }}"
+            data-en="{{ m.label_en }}"
+          >{{ m.label_zh }}</a>
         {% endfor %}
-      </nav>
-      {% else %}
-        <span class="brand" style="cursor:default;border:none;background:transparent;padding-left:0;">Modoor</span>
-      {% endif %}
+      </div>
     </div>
+    <nav class="nav" aria-label="Menus">
+      {% for item in module_menus %}
+        <a
+          href="{{ item.path }}"
+          class="{% if request.url.path == item.path %}active{% endif %}"
+          data-i18n-label
+          data-zh="{{ item.label_zh }}"
+          data-en="{{ item.label_en }}"
+        >{{ item.label_zh }}</a>
+      {% endfor %}
+    </nav>
+    {% else %}
+      <span class="brand" style="cursor:default;">Modoor</span>
+      <div class="nav"></div>
+    {% endif %}
     <div class="systray">
       {% if current_user %}
-      {# Messages #}
       <form class="shell-search-wrap" onsubmit="event.preventDefault(); if (window.__modoorShellSearch) window.__modoorShellSearch(this.q.value); return false;">
-        <input class="shell-search" type="search" name="q" placeholder="搜索…" aria-label="搜索" />
+        <input
+          class="shell-search"
+          type="search"
+          name="q"
+          data-i18n-placeholder="search"
+          data-i18n-aria="searchAria"
+          placeholder="搜索…"
+          aria-label="搜索"
+        />
       </form>
       <div class="systray-item" data-dropdown>
-        <button type="button" class="systray-btn" aria-haspopup="true" aria-expanded="false" aria-label="Messages" title="Messages">
-          <svg class="systray-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-            <path d="M4 6.5h16v11H4z"/>
-            <path d="M4 7l8 6 8-6"/>
+        <button
+          type="button"
+          class="systray-btn"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-i18n-aria="inbox"
+          data-i18n-title="inbox"
+          aria-label="消息"
+          title="消息"
+        >
+          <svg class="systray-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6 9a6 6 0 1 1 12 0c0 3.2 1.2 4.8 2 6H4c.8-1.2 2-2.8 2-6" />
+            <path d="M10 19a2 2 0 0 0 4 0" />
           </svg>
           {% if inbox_messages %}
           <span class="systray-badge">{{ inbox_messages|length }}</span>
@@ -498,22 +532,30 @@
         </button>
         <div class="systray-menu wide" role="menu">
           <div class="systray-menu-header">
-            <div class="name">Messages</div>
+            <div class="name" data-i18n="inbox">消息</div>
           </div>
           {% if inbox_messages %}
             {% for msg in inbox_messages %}
               <a href="{{ msg.href or '#' }}" role="menuitem">{{ msg.title }}</a>
             {% endfor %}
           {% else %}
-            <div class="systray-empty">No messages yet</div>
+            <div class="systray-empty" data-i18n="inboxEmpty">暂无消息</div>
           {% endif %}
         </div>
       </div>
 
-      {# Tenant — only when multiple (template shell currently single-tenant) #}
       {% if tenants is defined and tenants|length > 1 %}
       <div class="systray-item" data-dropdown>
-        <button type="button" class="systray-btn" aria-haspopup="true" aria-expanded="false" aria-label="Tenant" title="Tenant">
+        <button
+          type="button"
+          class="systray-btn"
+          aria-haspopup="true"
+          aria-expanded="false"
+          data-i18n-aria="tenant"
+          data-i18n-title="tenant"
+          aria-label="租户"
+          title="租户"
+        >
           <svg class="systray-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
             <path d="M3 21h18"/>
             <path d="M5 21V8l7-4 7 4v13"/>
@@ -523,8 +565,8 @@
         </button>
         <div class="systray-menu" role="menu">
           <div class="systray-menu-header">
-            <div class="name">Tenant</div>
-            <div class="sub">Current workspace</div>
+            <div class="name" data-i18n="tenant">租户</div>
+            <div class="sub" data-i18n="tenantSub">当前工作区</div>
           </div>
           {% for t in tenants %}
           <form method="post" action="/auth/switch" style="margin:0">
@@ -536,7 +578,6 @@
       </div>
       {% endif %}
 
-      {# Avatar / user menu #}
       <div class="systray-item" data-dropdown>
         <button type="button" class="systray-btn" aria-haspopup="true" aria-expanded="false" aria-label="User menu" title="{{ current_user.display_name }}">
           <span class="avatar">{{ user_initials }}</span>
@@ -544,26 +585,136 @@
         <div class="systray-menu" role="menu">
           <div class="systray-menu-header">
             <div class="name">{{ current_user.display_name }}</div>
-            <div class="sub">{{ current_user.login }}{% if current_user.email %} · {{ current_user.email }}{% endif %}</div>
+            <div class="sub">{{ current_user.username }} · {{ tenant }}</div>
           </div>
+          <div class="systray-menu-header lang-head">
+            <div class="sub" data-i18n="language">语言</div>
+          </div>
+          <button type="button" class="menu-link js-set-locale" data-locale="zh-CN" role="menuitem">中文</button>
+          <button type="button" class="menu-link js-set-locale" data-locale="en-US" role="menuitem">English</button>
+          <div class="sep"></div>
           <form method="post" action="/logout">
-            <button type="submit" class="menu-link" role="menuitem">Log out</button>
+            <button type="submit" class="menu-link" role="menuitem" data-i18n="logout">退出登录</button>
           </form>
         </div>
       </div>
       {% else %}
-        <a class="systray-login" href="/login">Login</a>
+        <a class="systray-login" href="/login" data-i18n="login">登录</a>
       {% endif %}
     </div>
-  </div>
+  </header>
   {% endblock %}
   <main>
     {% if flash %}<div class="flash">{{ flash }}</div>{% endif %}
     {% block content %}{% endblock %}
   </main>
-  {% if current_user %}
   <script>
     (function () {
+      var STORAGE_KEY = "modoor.locale";
+      var MESSAGES = {
+        "zh-CN": {
+          search: "搜索…",
+          searchAria: "搜索",
+          inbox: "消息",
+          inboxEmpty: "暂无消息",
+          tenant: "租户",
+          tenantSub: "当前工作区",
+          logout: "退出登录",
+          login: "登录",
+          language: "语言",
+          workbench: "工作台",
+          workbenchEmpty: "暂无可用模块。请联系管理员分配权限。"
+        },
+        "en-US": {
+          search: "Search…",
+          searchAria: "Search",
+          inbox: "Inbox",
+          inboxEmpty: "No messages",
+          tenant: "Tenant",
+          tenantSub: "Current workspace",
+          logout: "Log out",
+          login: "Log in",
+          language: "Language",
+          workbench: "Workbench",
+          workbenchEmpty: "No modules available. Ask an admin for access."
+        }
+      };
+
+      function normalizeLocale(raw) {
+        var v = String(raw || "").trim().toLowerCase().replace(/_/g, "-");
+        if (!v) return "zh-CN";
+        if (v === "zh" || v.indexOf("zh-") === 0) return "zh-CN";
+        if (v === "en" || v.indexOf("en-") === 0 || v === "us-en") return "en-US";
+        return "zh-CN";
+      }
+
+      function detectLocale() {
+        try {
+          var saved = localStorage.getItem(STORAGE_KEY);
+          if (saved) return normalizeLocale(saved);
+        } catch (e) {}
+        try {
+          var nav = (navigator.language || "").toLowerCase();
+          if (nav.indexOf("zh") === 0) return "zh-CN";
+        } catch (e) {}
+        return "en-US";
+      }
+
+      function t(key, locale) {
+        var pack = MESSAGES[locale] || MESSAGES["en-US"];
+        return pack[key] || (MESSAGES["en-US"][key] || key);
+      }
+
+      function applyI18n(locale) {
+        locale = normalizeLocale(locale);
+        document.documentElement.lang = locale;
+        var isZh = locale === "zh-CN";
+
+        document.querySelectorAll("[data-i18n]").forEach(function (el) {
+          var key = el.getAttribute("data-i18n");
+          if (key) el.textContent = t(key, locale);
+        });
+        document.querySelectorAll("[data-i18n-placeholder]").forEach(function (el) {
+          var key = el.getAttribute("data-i18n-placeholder");
+          if (key) el.setAttribute("placeholder", t(key, locale));
+        });
+        document.querySelectorAll("[data-i18n-aria]").forEach(function (el) {
+          var key = el.getAttribute("data-i18n-aria");
+          if (key) el.setAttribute("aria-label", t(key, locale));
+        });
+        document.querySelectorAll("[data-i18n-title]").forEach(function (el) {
+          var key = el.getAttribute("data-i18n-title");
+          if (key) el.setAttribute("title", t(key, locale));
+        });
+        document.querySelectorAll("[data-i18n-label]").forEach(function (el) {
+          var zh = el.getAttribute("data-zh") || "";
+          var en = el.getAttribute("data-en") || zh;
+          var text = isZh ? zh : en;
+          var brandText = el.querySelector(".brand-text");
+          if (brandText) brandText.textContent = text;
+          else el.textContent = text;
+        });
+        document.querySelectorAll(".js-set-locale").forEach(function (btn) {
+          var code = btn.getAttribute("data-locale");
+          btn.classList.toggle("active", code === locale);
+        });
+      }
+
+      window.__modoorApplyI18n = applyI18n;
+      applyI18n(detectLocale());
+
+      document.querySelectorAll(".js-set-locale").forEach(function (btn) {
+        btn.addEventListener("click", function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var next = normalizeLocale(btn.getAttribute("data-locale"));
+          try { localStorage.setItem(STORAGE_KEY, next); } catch (err) {}
+          applyI18n(next);
+          var wrap = btn.closest("[data-dropdown]");
+          if (wrap) wrap.classList.remove("open");
+        });
+      });
+
       function closeAll(except) {
         document.querySelectorAll("[data-dropdown].open, #brand-wrap.open").forEach(function (el) {
           if (el === except) return;
@@ -597,6 +748,5 @@
       document.addEventListener("click", function () { closeAll(null); });
     })();
   </script>
-  {% endif %}
 </body>
 </html>

@@ -106,9 +106,8 @@ export async function deleteTeam(teamId: number) {
 
 export async function rolesBundle() {
   return get<{
-    roles: { id: string; code: string; name: string; app_id?: string | null; description?: string | null }[]
+    roles: { id: string; code: string; name: string; description?: string | null }[]
     users: User[]
-    apps: { id: string; code: string; name: string }[]
     assignments: Record<string, { id: string; code: string }[]>
     role_nodes: Record<string, string[]>
     ability_catalog: {
@@ -136,12 +135,14 @@ export async function setRoleNodes(roleId: string, nodes: string[]) {
 }
 
 export async function createRole(body: {
-  code: string
   name: string
-  app_id?: string
+  code?: string
   description?: string
 }) {
-  return post<{ ok: boolean }>('/api/base/roles', body)
+  return post<{ ok: boolean; role: { id: string; code: string; name: string } }>(
+    '/api/base/roles',
+    body,
+  )
 }
 
 export async function deleteRole(roleId: string) {
@@ -157,7 +158,7 @@ export async function fetchUserRoles(userKey: number | string) {
   return get<{
     ok: boolean
     user_id: number
-    roles: { id: string; code: string; name: string; app_id?: string | null; description?: string | null }[]
+    roles: { id: string; code: string; name: string; description?: string | null }[]
     assigned: { id: string; code: string; name: string }[]
   }>(`/api/base/users/${encodeURIComponent(String(userKey))}/roles`)
 }
