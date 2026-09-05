@@ -16,8 +16,8 @@ from modoor.core.settings import Settings, get_settings  # noqa: E402
 from modoor.platform.bootstrap import bootstrap  # noqa: E402
 from modoor.runtime.auth import resolve_ctx  # noqa: E402
 from modoor.runtime.jobs import run_pending  # noqa: E402
-from modules.doc import domain as doc_domain  # noqa: E402
-from modules.doc.storage import get_blob_store  # noqa: E402
+from platform.doc import domain as doc_domain  # noqa: E402
+from platform.doc.storage import get_blob_store  # noqa: E402
 from tests.conftest import ensure_database, test_database_url  # noqa: E402
 
 

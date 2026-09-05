@@ -12,14 +12,14 @@ from modoor.core.db import session_scope
 from modoor.core.errors import AppError
 from modoor.core.settings import get_settings
 from modoor.engine.service import get_engine
-from modules.base import domain as base_domain
-from modules.base.domain import SystemUser
+from platform.base import domain as base_domain
+from platform.base.domain import SystemUser
 
 router = APIRouter()
 
 
 def _bootstrap_tenant_id() -> int:
-    from modules.base.domain import ensure_tenant
+    from platform.base.domain import ensure_tenant
 
     with session_scope() as session:
         s = get_settings()

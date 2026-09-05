@@ -28,7 +28,7 @@ from modoor.web.nav import (
     registry_catalog,
     resolve_home,
 )
-from modules.base import domain as base_domain
+from platform.base import domain as base_domain
 
 
 @asynccontextmanager

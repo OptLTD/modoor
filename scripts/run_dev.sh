@@ -16,6 +16,8 @@ module_port() {
     sale) echo 5177 ;;
     skill) echo 5178 ;;
     doc) echo 5179 ;;
+    fleet) echo 5180 ;;
+    transport) echo 5181 ;;
     *) echo "" ;;
   esac
 }
@@ -36,7 +38,7 @@ free_port() {
 MODULES=("$@")
 if [[ ${#MODULES[@]} -eq 0 ]]; then
   echo "usage: make dev <module> [module...]"
-  echo "  modules: base wiki sale skill doc"
+  echo "  modules: base wiki sale skill doc fleet transport"
   echo "  example: make dev base"
   echo "           make dev base wiki"
   exit 1
@@ -71,11 +73,14 @@ modoor_load_webui_url
 start_webui() {
   local name="$1"
   local dir="${ROOT}/modules/${name}/webui"
+  if [[ ! -d "${dir}" ]]; then
+    dir="${ROOT}/platform/${name}/webui"
+  fi
   local p
   p="$(module_port "${name}")"
   if [[ ! -d "${dir}" ]]; then
     echo "!! unknown or missing module webui: ${name}" >&2
-    echo "   expected: ${dir}" >&2
+    echo "   expected under modules/ or platform/: ${name}/webui" >&2
     exit 1
   fi
   free_port "${p}"

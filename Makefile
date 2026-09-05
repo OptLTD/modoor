@@ -88,7 +88,8 @@ webui: ## Module Vue only: make webui base wiki
 	if [ -z "$$mods" ]; then echo "usage: make webui <module> [module...]"; exit 1; fi; \
 	for m in $$mods; do \
 		d="$(ROOT)/modules/$$m/webui"; \
-		if [ ! -d "$$d" ]; then echo "missing $$d"; exit 1; fi; \
+		if [ ! -d "$$d" ]; then d="$(ROOT)/platform/$$m/webui"; fi; \
+		if [ ! -d "$$d" ]; then echo "missing modules|platform/$$m/webui"; exit 1; fi; \
 		( cd "$$d" && if [ ! -d node_modules ]; then npm install; fi && npm run dev ) & \
 	done; wait
 

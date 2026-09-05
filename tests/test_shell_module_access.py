@@ -11,7 +11,7 @@ from modoor.platform.bootstrap import bootstrap
 from modoor.runtime.auth import resolve_ctx
 from modoor.web.app import app
 from modoor.web.nav import clear_ui_cache
-from modules.base import domain as base_domain
+from platform.base import domain as base_domain
 from tests.conftest import configure_test_db
 
 

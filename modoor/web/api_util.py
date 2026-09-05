@@ -7,7 +7,7 @@ from fastapi import HTTPException, Request
 from modoor.core.ctx import Ctx
 from modoor.core.errors import AppError
 from modoor.web.kit import ShellKit, get_kit
-from modules.base.domain import SystemUser
+from platform.base.domain import SystemUser
 
 
 def kit() -> ShellKit:

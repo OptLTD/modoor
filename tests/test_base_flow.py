@@ -10,8 +10,8 @@ from modoor.core.settings import get_settings
 from modoor.engine.adapters import SystemUserAdapter
 from modoor.platform.bootstrap import bootstrap
 from modoor.runtime.auth import resolve_ctx
-from modules.base import domain as base_domain
-from modules.base.tools import (
+from platform.base import domain as base_domain
+from platform.base.tools import (
     assign_role,
     create_app,
     create_role,
@@ -155,7 +155,7 @@ def test_login_shared_across_tenants():
 def test_create_user_binds_login_from_email_or_phone():
     from modoor.core.ctx import Ctx
     from modoor.core.security import verify_password
-    from modules.base.domain import SystemLogin
+    from platform.base.domain import SystemLogin
 
     ctx = resolve_ctx(get_settings())
     with session_scope() as session:

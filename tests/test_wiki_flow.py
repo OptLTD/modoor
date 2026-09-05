@@ -7,7 +7,7 @@ import pytest
 from modoor.core.settings import get_settings
 from modoor.platform.bootstrap import bootstrap
 from tests.conftest import configure_test_db
-from modules.wiki.tools import (
+from platform.wiki.tools import (
     create_page,
     delete_page,
     get_page,

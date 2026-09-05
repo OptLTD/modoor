@@ -10,10 +10,10 @@ from modoor.core.errors import AppError
 from modoor.core.security import hash_password
 from modoor.core.settings import Settings, get_settings
 from modoor.platform.module_state import sync_discovered_modules
-from modules.base import domain as base_domain
-from modules.base.domain import SystemTenant, SystemUser
+from platform.base import domain as base_domain
+from platform.base.domain import SystemTenant, SystemUser
 from modules.sale import domain as sale_domain
-from modules.wiki import domain as wiki_domain
+from platform.wiki import domain as wiki_domain
 
 
 def _find_existing_tenant(

@@ -1,4 +1,4 @@
-"""Discover and load business modules (domain / MCP tools / PC web UI)."""
+"""Discover and load platform + business modules (domain / MCP tools / PC web UI)."""
 
 from __future__ import annotations
 
@@ -6,8 +6,9 @@ import importlib
 from pathlib import Path
 from typing import Any
 
-from modoor.platform.module_state import ALWAYS_ON, discover_manifests, enabled_module_ids
 from modoor.core.settings import Settings, get_settings
+from modoor.platform.module_state import ALWAYS_ON, discover_manifests, enabled_module_ids
+from modoor.platform.roots import find_module_dir
 
 
 def _module_ids(settings: Settings) -> list[str]:
@@ -15,18 +16,21 @@ def _module_ids(settings: Settings) -> list[str]:
 
 
 def load_module_domains(settings: Settings | None = None) -> list[str]:
-    """Import modules.<id>.domain so Base.metadata sees their tables.
+    """Import <pkg>.<id>.domain so Base.metadata sees their tables.
 
     Domain models always load (schema), regardless of enable flag.
     """
     settings = settings or get_settings()
-    root = Path(settings.modoor_modules_root)
     loaded: list[str] = []
     for module_id in _module_ids(settings):
-        domain_file = root / module_id / "domain.py"
+        hit = find_module_dir(module_id, settings)
+        if hit is None:
+            continue
+        pkg, root = hit
+        domain_file = root / "domain.py"
         if not domain_file.is_file():
             continue
-        dotted = f"modules.{module_id}.domain"
+        dotted = f"{pkg}.{module_id}.domain"
         importlib.import_module(dotted)
         loaded.append(dotted)
     return loaded
@@ -35,14 +39,13 @@ def load_module_domains(settings: Settings | None = None) -> list[str]:
 def register_module_tools(mcp: Any, settings: Settings | None = None) -> list[str]:
     """Register MCP tools only for enabled modules (base always on)."""
     settings = settings or get_settings()
-    root = Path(settings.modoor_modules_root)
 
     enabled: set[str] | None = None
     try:
         from modoor.core.db import session_scope
 
         with session_scope() as session:
-            from modules.base.domain import ensure_tenant
+            from platform.base.domain import ensure_tenant
 
             tenant_id = int(
                 ensure_tenant(
@@ -59,10 +62,14 @@ def register_module_tools(mcp: Any, settings: Settings | None = None) -> list[st
     for module_id in _module_ids(settings):
         if enabled is not None and module_id not in enabled:
             continue
-        tools_init = root / module_id / "tools" / "__init__.py"
+        hit = find_module_dir(module_id, settings)
+        if hit is None:
+            continue
+        pkg, root = hit
+        tools_init = root / "tools" / "__init__.py"
         if not tools_init.is_file():
             continue
-        dotted = f"modules.{module_id}.tools"
+        dotted = f"{pkg}.{module_id}.tools"
         mod = importlib.import_module(dotted)
         register = getattr(mod, "register", None)
         if register is None:
@@ -73,19 +80,22 @@ def register_module_tools(mcp: Any, settings: Settings | None = None) -> list[st
 
 
 def register_module_web(app: Any, kit: Any, settings: Settings | None = None) -> list[str]:
-    """Call modules.<id>.webui.register(app, kit).
+    """Call <pkg>.<id>.webui.register(app, kit).
 
     Routes always register so disabled modules can still 303 to base with flash.
     Enable checks stay inside each module's handlers.
     """
     settings = settings or get_settings()
-    root = Path(settings.modoor_modules_root)
     registered: list[str] = []
     for module_id in _module_ids(settings):
+        hit = find_module_dir(module_id, settings)
+        if hit is None:
+            continue
+        pkg, root = hit
         candidates = [
-            (root / module_id / "webui.py", f"modules.{module_id}.webui"),
-            (root / module_id / "web.py", f"modules.{module_id}.web"),
-            (root / module_id / "ui" / "web.py", f"modules.{module_id}.ui.web"),
+            (root / "webui.py", f"{pkg}.{module_id}.webui"),
+            (root / "web.py", f"{pkg}.{module_id}.web"),
+            (root / "ui" / "web.py", f"{pkg}.{module_id}.ui.web"),
         ]
         dotted: str | None = None
         for path, name in candidates:

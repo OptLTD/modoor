@@ -228,7 +228,8 @@ def _register_statics(
     skip_prefixes: set[str],
 ) -> list[str]:
     settings = get_settings()
-    root = Path(settings.modoor_modules_root)
+    from modoor.platform.roots import module_dir
+
     catalog = get_ui_catalog()
     wanted = _module_ids_from_env(
         getattr(settings, "modoor_webui_static_modules", "") or ""
@@ -242,7 +243,7 @@ def _register_statics(
         public = join_web_mount(base).rstrip("/")
         if public in skip_prefixes or any(public.startswith(f"{p}/") for p in skip_prefixes):
             continue
-        dist = root / mid / "webui" / "dist"
+        dist = module_dir(mid, settings) / "webui" / "dist"
         if not dist.is_dir() or not (dist / "index.html").is_file():
             continue
         app.mount(

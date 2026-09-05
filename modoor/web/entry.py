@@ -70,7 +70,9 @@ def entry_context(
     tenant_id: str | None = None,
 ) -> EntryContext:
     settings = settings or get_settings()
-    root = Path(settings.modoor_modules_root) / module_id
+    from modoor.platform.roots import module_dir
+
+    root = module_dir(module_id, settings)
     return EntryContext(
         module_id=module_id,
         module_root=root,
@@ -81,8 +83,11 @@ def entry_context(
 
 
 def load_resolve_entry(module_id: str):
-    """Import modules.<id>.webui.resolve_entry if present."""
-    for dotted in (f"modules.{module_id}.webui",):
+    """Import <pkg>.<id>.webui.resolve_entry if present."""
+    from modoor.platform.roots import module_import_prefix
+
+    pkg = module_import_prefix(module_id)
+    for dotted in (f"{pkg}.{module_id}.webui",):
         try:
             mod = importlib.import_module(dotted)
         except ModuleNotFoundError:

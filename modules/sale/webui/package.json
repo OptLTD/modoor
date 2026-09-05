@@ -9,8 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@modoor/hooks": "file:../../../packages/hooks",
-    "@modoor/widget": "file:../../../packages/widget",
+    "@modoor/hooks": "file:../../../shared/hooks",
+    "@modoor/widget": "file:../../../shared/widget",
     "vue": "^3.5.0",
     "vue-router": "^4.5.0",
     "jspreadsheet-ce": "^5.0.4",

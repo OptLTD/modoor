@@ -17,7 +17,7 @@ mcp = MCPServer(
     version="0.1.0",
     instructions=(
         "Modoor capability layer (AI-first registry hub). "
-        "In-repo modules expose tools under modules/*/tools. "
+        "In-repo modules expose tools under platform/*/tools and modules/*/tools. "
         "External apps may optionally register a MODULE_CONTRACT manifest + artifacts "
         "via the service registry; invoke with external.call_tool. "
         "High-risk tools may return needs_confirmation."
@@ -37,9 +37,12 @@ def ensure_tools_registered() -> None:
 
 
 def _local_skills() -> list[dict[str, Any]]:
-    root = Path(get_settings().modoor_modules_root)
+    from modoor.platform.roots import module_pkg_roots
+
     skills: list[dict[str, Any]] = []
-    if root.is_dir():
+    for _pkg, root in module_pkg_roots():
+        if not root.is_dir():
+            continue
         for skill_path in sorted(root.glob("*/skills/*.md")):
             module_id = skill_path.parent.parent.name
             skill_name = skill_path.stem
@@ -61,13 +64,13 @@ def _custom_skills() -> list[dict[str, Any]]:
     """Tenant custom skills from the skill module (editable)."""
     settings = get_settings()
     try:
-        from modules.skill import domain as skill_domain
+        from platform.skill import domain as skill_domain
     except ImportError:
         return []
     from modoor.core.db import session_scope
 
     with session_scope() as session:
-        from modules.base.domain import ensure_tenant
+        from platform.base.domain import ensure_tenant
 
         tenant_id = int(
             ensure_tenant(
@@ -104,15 +107,16 @@ def _external_skills() -> list[dict[str, Any]]:
 
 @mcp.resource("skill://{module_id}/{skill_name}")
 def skill_resource(module_id: str, skill_name: str) -> str:
-    """Load Skill from modules/, custom catalog, or a registered external app."""
-    root = get_settings().modoor_modules_root
-    path = Path(root) / module_id / "skills" / f"{skill_name}.md"
+    """Load Skill from platform/|modules/, custom catalog, or a registered external app."""
+    from modoor.platform.roots import module_dir
+
+    path = module_dir(module_id) / "skills" / f"{skill_name}.md"
     if path.is_file():
         return path.read_text(encoding="utf-8")
 
     if module_id == "custom":
         try:
-            from modules.skill import domain as skill_domain
+            from platform.skill import domain as skill_domain
         except ImportError as exc:
             raise FileNotFoundError(
                 f"Skill not found: {module_id}/{skill_name}"

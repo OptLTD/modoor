@@ -1,6 +1,6 @@
 # Phase 0 实现约定
 
-> 与 [`AI_FIRST_ODOO_PLAN.md`](./AI_FIRST_ODOO_PLAN.md) 已决项对齐；指导本仓第一版代码。
+> 与 [`AI_SYSTEM_PLAN.md`](./AI_SYSTEM_PLAN.md) 已决项对齐；指导本仓第一版代码。
 
 ## 目标
 

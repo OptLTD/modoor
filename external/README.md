@@ -10,8 +10,9 @@ PC Brand / 外部应用的 Module 切换都从 `GET /api/registry/catalog` 取�
 | Board | 8771 | `board` | 便签板（服务端 HTML）；启动时自动注册 |
 | Pulse | 8772 | `pulse` | Vue CSR；启动时自动注册 |
 
-**不在** `modules/` 下放置桥接清单；Brand / catalog 只在服务成功 `POST /api/registry/services` 后出现。
+第一方业务垂直（Fleet / Transport）已迁入仓内 `modules/`，不再走 external。
 
+**不在** `modules/` 下放置桥接清单；Brand / catalog 只在服务成功 `POST /api/registry/services` 后出现。
 
 均自带 **module 切换** + **Log out**（建议能力）。
 

@@ -1,0 +1,41 @@
+id: fleet
+version: 0.1.0
+depends: []
+summary: Fleet / VMS — vehicles (table prefix vms_)
+tags: [business, fleet, vms]
+
+ui-web:
+  kind: app
+  label: Fleet
+  base: /fleet
+  entry: /fleet
+
+exports:
+  tools:
+    - fleet.list_vehicles
+    - fleet.add_vehicle
+  skills:
+    - fleet.manage_vehicles
+  menus:
+    - id: fleet.vehicles
+      label: Vehicles
+      path: /fleet
+      sequence: 10
+
+ability:
+  - fleet.vehicle.read
+  - fleet.vehicle.write
+
+risk_default: low
+
+i18n:
+  zh-CN:
+    app.label: 车队
+    fleet.vehicles: 车辆
+    fleet.vehicle.read: 读取车辆
+    fleet.vehicle.write: 管理车辆
+  en-US:
+    app.label: Fleet
+    fleet.vehicles: Vehicles
+    fleet.vehicle.read: Read vehicles
+    fleet.vehicle.write: Manage vehicles

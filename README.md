@@ -1,7 +1,6 @@
 # Modoor — AI Capability Layer (Phase 0)
 
-按 Odoo **Module** 理念重做的能力层：对外发布 **Skill + MCP**，供外部 AI 调用。  
-**与 Odoo 无运行时关系。**
+以可安装 **Module** 为扩展单位的 AI 能力层：对外发布 **Skill + MCP**，供外部 AI 调用。
 
 当前能力：`base`（app/user/role）、`sale`（create→confirm）、`wiki`（页面 CRUD）；鉴权为 API Key → ctx。  
 外部应用 demo：`external/board`、`external/pulse`（经 Modoor 注册中心发现）。
@@ -9,6 +8,10 @@
 整合层包结构：
 
 ```text
+platform/     # 平台模块：base / doc / wiki / skill
+modules/      # 业务模块：sale / fleet / transport / …
+shared/       # 共享前端：hooks / widget
+external/     # 外进程 demo（board / pulse）
 modoor/
   core/       # settings / ctx / db / errors / security
   runtime/    # auth / audit / confirmation / tool runner / MCP

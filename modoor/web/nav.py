@@ -273,7 +273,7 @@ def registry_catalog(
     tenant_name = settings.modoor_tenant
     if tenant_id is not None:
         from modoor.core.db import session_scope
-        from modules.base.domain import SystemTenant
+        from platform.base.domain import SystemTenant
 
         with session_scope() as session:
             row = session.get(SystemTenant, int(tenant_id))
@@ -281,7 +281,7 @@ def registry_catalog(
                 tenant_name = row.name
     else:
         from modoor.core.db import session_scope
-        from modules.base.domain import ensure_tenant
+        from platform.base.domain import ensure_tenant
 
         with session_scope() as session:
             tenant_id = int(

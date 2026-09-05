@@ -8,6 +8,11 @@ from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _default_platform_root() -> Path:
+    # modoor/core/settings.py → repo root
+    return Path(__file__).resolve().parents[2] / "platform"
+
+
 def _default_modules_root() -> Path:
     # modoor/core/settings.py → repo root
     return Path(__file__).resolve().parents[2] / "modules"
@@ -66,9 +71,15 @@ class Settings(BaseSettings):
         default="postgresql+psycopg://modoor:modoor@127.0.0.1:5432/modoor",
         alias="DATABASE_URL",
     )
+    modoor_platform_root: Path = Field(
+        default_factory=_default_platform_root,
+        alias="MODOOR_PLATFORM_ROOT",
+        description="Builtin platform modules (base/doc/wiki/skill).",
+    )
     modoor_modules_root: Path = Field(
         default_factory=_default_modules_root,
         alias="MODOOR_MODULES_ROOT",
+        description="Business modules (sale/crm/…).",
     )
     # Derived from MODOOR_WEBUI_URL (no separate env needed).
     modoor_web_host: str = Field(default="127.0.0.1")
@@ -84,7 +95,7 @@ class Settings(BaseSettings):
     )
     # Short form: base=5175,wiki=5176 (host from WEBUI_URL). Full URLs still accepted.
     modoor_module_urls: str = Field(
-        default="base=5175,wiki=5176,sale=5177,skill=5178,doc=5179",
+        default="base=5175,wiki=5176,sale=5177,skill=5178,doc=5179,fleet=5180,transport=5181",
         alias="MODOOR_MODULE_URLS",
     )
     # doc module blob storage: local | s3 | minio (v1 implements local only)

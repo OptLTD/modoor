@@ -6,7 +6,7 @@ from modoor.core.ctx import Ctx
 from modoor.core.db import session_scope
 from modoor.core.errors import AppError
 from modoor.core.settings import Settings
-from modules.base.domain import SystemUser, ensure_tenant, root_team_id
+from platform.base.domain import SystemUser, ensure_tenant, root_team_id
 
 
 def resolve_ctx(settings: Settings, provided_api_key: str | None = None) -> Ctx:

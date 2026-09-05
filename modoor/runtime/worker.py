@@ -15,7 +15,7 @@ _thread: threading.Thread | None = None
 
 
 def _ensure_handlers() -> None:
-    from modules.doc.jobs import register as register_doc_jobs
+    from platform.doc.jobs import register as register_doc_jobs
 
     register_doc_jobs()
 

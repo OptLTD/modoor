@@ -19,8 +19,8 @@ from modoor.web.nav import (
     module_menus,
     switcher_items,
 )
-from modules.base import domain as base_domain
-from modules.base.domain import SystemUser
+from platform.base import domain as base_domain
+from platform.base.domain import SystemUser
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -40,7 +40,7 @@ class ShellKit:
 
     def tenant(self) -> int:
         """Resolved tenant id (ensures tenant + root team exist)."""
-        from modules.base.domain import ensure_tenant
+        from platform.base.domain import ensure_tenant
 
         s = self.settings()
         with session_scope() as session:

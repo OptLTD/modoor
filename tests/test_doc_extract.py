@@ -11,8 +11,8 @@ from modoor.core.settings import get_settings
 from modoor.platform.bootstrap import bootstrap
 from modoor.runtime.jobs import Job, run_pending
 from modoor.runtime.auth import resolve_ctx
-from modules.doc import domain as doc_domain
-from modules.doc.extract import extract_bytes, preview_excel, sanitize_pg_text, _clip
+from platform.doc import domain as doc_domain
+from platform.doc.extract import extract_bytes, preview_excel, sanitize_pg_text, _clip
 from tests.conftest import configure_test_db
 
 

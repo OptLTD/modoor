@@ -1,7 +1,7 @@
 # AI-First Capability Layer — 整合项目 Plan（能力层优先）
 
 > 状态：讨论草案  
-> **理念**：借鉴 Odoo 的 Module / 可安装扩展思路，**重新设计**；**与 Odoo 无代码/运行时关系**（不挂 Odoo、不 Fork）。  
+> **理念**：以可安装 **Module** 为扩展单位，自研契约与实现。  
 > **本项目当前职责**：整合 Module，对外发布 **Skill + MCP**（AI 能力层），供**其他 AI** 消费。  
 > **当前不做**：自有 AI Chat、AI 编排、终端 Chat/Mobile Shell。  
 > 期望见 [`EXPECTATIONS.md`](./EXPECTATIONS.md)；契约见 [`MODULE_CONTRACT.md`](./MODULE_CONTRACT.md)。
@@ -15,7 +15,7 @@ EXPECTATIONS.md       要什么（先能力层，后 Chat/编排）
         ↓
 MODULE_CONTRACT.md    Module 交什么（Skill + MCP 素材）
         ↓
-AI_FIRST_ODOO_PLAN.md 本仓做什么（整合 + 对外暴露）
+AI_SYSTEM_PLAN.md     本仓做什么（整合 + 对外暴露）
         ↓
 PHASE0.md / INTEGRATION.md  实现约定与接入
 ```
@@ -52,10 +52,10 @@ modules/*  ──install──▶  Registry
 
 | 阶段 | 内容 |
 |---|---|
-| **现在** | 能力层：Module + MCP + Skill + ACL/审计（自有落库，不依赖 Odoo） |
+| **现在** | 能力层：Module + MCP + Skill + ACL/审计（自有落库） |
 | Phase 0 | 自研最小后端 + 一条垂直链，打通「外部 AI → MCP → 落库」 |
 | 以后 | 自有 Runtime / Chat / Mobile Shell（复用同一契约，不另起写库 API） |
-| 避免 | 挂接/Fork Odoo；先做 Chat 再补能力面 |
+| 避免 | 先做 Chat 再补能力面 |
 
 ---
 
@@ -111,7 +111,7 @@ MCP 暴露策略（已决）：
 
 - 自研 AI Chat、AI 编排  
 - Mobile App / Canvas 渲染  
-- 热插拔不重启、挂接/Fork Odoo、影子改表、复刻全应用树  
+- 热插拔不重启、影子改表、复刻全应用树  
 
 ---
 
@@ -162,7 +162,6 @@ MCP 暴露策略（已决）：
 
 **已决**
 
-- [x] 与 Odoo：**无关**（理念借鉴，不挂接、不 Fork）
 - [x] 语言：**Python**
 - [x] ctx：必填 `tenant` + `user_id`；`team_id` **可选**（无多组织则不传）
 - [x] MCP：**A 单聚合**

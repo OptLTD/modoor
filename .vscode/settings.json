@@ -1,5 +1,5 @@
 {
     "i18n-ally.localesPaths": [
-        "packages/hooks/src/messages"
+        "shared/hooks/src/messages"
     ]
 }

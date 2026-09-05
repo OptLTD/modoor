@@ -8,8 +8,8 @@ from modoor.core.db import session_scope
 from modoor.core.errors import AppError
 from modoor.platform.module_state import list_modules, set_module_enabled, sync_discovered_modules
 from modoor.core.settings import get_settings
-from modules.base import domain as base_domain
-from modules.wiki import domain as wiki_domain
+from platform.base import domain as base_domain
+from platform.wiki import domain as wiki_domain
 from tests.conftest import configure_test_db
 
 

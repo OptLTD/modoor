@@ -2,8 +2,8 @@
 
 > 本文档只描述**我们要建成什么样的系统**。  
 > **当前阶段优先级：先做 AI 能力层，暴露给其他 AI；不做自有 AI Chat / AI 编排。**  
-> **与 Odoo 无关**：借鉴其 Module 理念，独立实现。ctx：必填 `tenant` / `user_id`，可选 `team_id`。  
-> Module 契约见 [`MODULE_CONTRACT.md`](./MODULE_CONTRACT.md)；本仓库计划见 [`AI_FIRST_ODOO_PLAN.md`](./AI_FIRST_ODOO_PLAN.md)。
+> ctx：必填 `tenant` / `user_id`，可选 `team_id`。  
+> Module 契约见 [`MODULE_CONTRACT.md`](./MODULE_CONTRACT.md)；本仓库计划见 [`AI_SYSTEM_PLAN.md`](./AI_SYSTEM_PLAN.md)。
 
 ---
 
@@ -37,7 +37,7 @@
 
 ## 1. 产品期望（能力层）
 
-长期仍可走向 AI-first 的「可插拔业务平台」（理念上接近 Odoo 的 Module 生态，**实现上无关**），但**第一里程碑只交付能力层**：
+长期仍可走向 AI-first 的「可插拔业务平台」，但**第一里程碑只交付能力层**：
 
 | 期望 | 说明 |
 |---|---|
@@ -138,7 +138,6 @@
 - 复刻完整传统 ERP 菜单 / 应用树
 - 终端用户 Mobile App（可作为更后期）
 - Agent 直连 DB 或旁路 MCP
-- 挂接或深度 Fork Odoo（本系统为独立实现）
 - 无 Module 产物的影子改表
 
 ---
@@ -161,5 +160,5 @@ EXPECTATIONS.md          ← 期望：先能力层，后 Chat/编排/Mobile Shel
         ↓ 约束
 MODULE_CONTRACT.md       ← Module 如何产出 Skill + MCP
         ↓ 实现
-AI_FIRST_ODOO_PLAN.md    ← 本项目：整合并对外暴露能力层
+AI_SYSTEM_PLAN.md        ← 本项目：整合并对外暴露能力层
 ```

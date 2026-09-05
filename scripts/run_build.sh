@@ -19,8 +19,11 @@ for name in "${MODULES[@]}"; do
   [[ -z "${name}" ]] && continue
   dir="${ROOT}/modules/${name}/webui"
   if [[ ! -d "${dir}" ]]; then
+    dir="${ROOT}/platform/${name}/webui"
+  fi
+  if [[ ! -d "${dir}" ]]; then
     echo "!! unknown or missing module webui: ${name}" >&2
-    echo "   expected: ${dir}" >&2
+    echo "   expected under modules/ or platform/: ${name}/webui" >&2
     exit 1
   fi
   (

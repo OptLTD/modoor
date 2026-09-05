@@ -20,16 +20,16 @@
       "vue-router": ["./node_modules/vue-router"],
       "jspreadsheet-ce": ["./node_modules/jspreadsheet-ce"],
       "jsuites": ["./node_modules/jsuites"],
-      "@modoor/hooks": ["../../../packages/hooks/src"],
-      "@modoor/widget": ["../../../packages/widget/src"],
-      "@modoor/widget/*": ["../../../packages/widget/src/*"]
+      "@modoor/hooks": ["../../../shared/hooks/src"],
+      "@modoor/widget": ["../../../shared/widget/src"],
+      "@modoor/widget/*": ["../../../shared/widget/src/*"]
     }
   },
   "include": [
     "src/**/*.ts",
     "src/**/*.vue",
-    "../../../packages/hooks/src/**/*.ts",
-    "../../../packages/widget/src/**/*.ts",
-    "../../../packages/widget/src/**/*.vue"
+    "../../../shared/hooks/src/**/*.ts",
+    "../../../shared/widget/src/**/*.ts",
+    "../../../shared/widget/src/**/*.vue"
   ]
 }

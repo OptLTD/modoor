@@ -2,9 +2,8 @@
 
 > 依据 [`EXPECTATIONS.md`](./EXPECTATIONS.md)：  
 > **当前**对外交付是 **Skill + MCP（给其他 AI）**；自有 Chat / 编排 / Mobile Shell 后置。  
-> **与 Odoo 无关**：仅借鉴 Module / 可安装扩展理念，契约与实现均为自研。  
-> 调用上下文：必填 `tenant` / `user_id`，可选 `team_id`。  
-> 本文规定 Module 必须提供的契约。整合见 [`AI_FIRST_ODOO_PLAN.md`](./AI_FIRST_ODOO_PLAN.md)。
+> 契约与实现均为自研；调用上下文：必填 `tenant` / `user_id`，可选 `team_id`。  
+> 本文规定 Module 必须提供的契约。整合见 [`AI_SYSTEM_PLAN.md`](./AI_SYSTEM_PLAN.md)。
 
 ---
 
@@ -110,7 +109,7 @@ def register(app, kit) -> None:
 | `mode` | `target` 示例 | Master 做什么 |
 |---|---|---|
 | `url` | `http://127.0.0.1:5175/` | 开发态代理 / 跳转（`npm run dev`） |
-| `static` | `modules/wiki/webui/dist` | 同源挂载静态目录 |
+| `static` | `platform/wiki/webui/dist` | 同源挂载静态目录 |
 | `template` | `wiki/home.html` 或已 register 的路由前缀 | 服务端 template 渲染 |
 
 解析优先级（固定）：
@@ -137,10 +136,10 @@ def resolve_entry(ctx: EntryContext) -> WebEntry | None:
     return WebEntry(mode="template", target="wiki/home.html", base="/wiki")
 ```
 
-共享前端放在仓级 `packages/`，**按组件完整目录组织**（类似 Element UI：用哪个就进哪个目录拿完整实现）：
+共享前端放在仓级 `shared/`，**按组件完整目录组织**（类似 Element UI：用哪个就进哪个目录拿完整实现）：
 
 ```text
-packages/
+shared/
   widget/
     SchemaTable/     # SchemaTable.vue + useSchemaTable + 本组件私有逻辑
     SchemaSheet/     # SchemaSheet.vue + sheet grid/dirty/recalc… 完整实现

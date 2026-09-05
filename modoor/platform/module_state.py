@@ -38,44 +38,51 @@ class ModuleInstall(Base):
 
 def discover_manifests(settings: Settings | None = None) -> list[dict[str, Any]]:
     settings = settings or get_settings()
-    root = settings.modoor_modules_root
+    from modoor.platform.roots import module_pkg_roots
+
     items: list[dict[str, Any]] = []
-    if not root.is_dir():
-        return items
-    for path in sorted(root.glob("*/module.yaml")):
-        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        mid = data.get("id") or path.parent.name
-        ui = data.get("ui-web") or {}
-        if not isinstance(ui, dict):
-            ui = {}
-        kind = str(ui.get("kind") or "app")
-        label = str(ui.get("label") or mid)
-        raw_tags = data.get("tags")
-        tags: list[str] = []
-        if isinstance(raw_tags, list):
-            tags = [str(t).strip() for t in raw_tags if str(t).strip()]
-        # 派生标签：便于筛选
-        derived = [kind, str(data.get("risk_default") or "").strip()]
-        for t in derived:
-            if t and t not in tags:
-                tags.append(t)
-        items.append(
-            {
-                "id": mid,
-                "label": label,
-                "kind": kind,
-                "version": str(data.get("version") or ""),
-                "summary": data.get("summary") or "",
-                "tags": tags,
-                "risk_default": data.get("risk_default") or "",
-                "ability": [str(x) for x in (data.get("ability") or []) if str(x).strip()],
-                "depends": list(data.get("depends") or []),
-                "tools": (data.get("exports") or {}).get("tools") or [],
-                "skills": (data.get("exports") or {}).get("skills") or [],
-                "i18n": normalize_manifest_i18n(data.get("i18n")),
-                "path": str(path.parent),
-            }
-        )
+    seen: set[str] = set()
+    for pkg, root in module_pkg_roots(settings):
+        if not root.is_dir():
+            continue
+        for path in sorted(root.glob("*/module.yaml")):
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+            mid = data.get("id") or path.parent.name
+            if mid in seen:
+                continue
+            seen.add(str(mid))
+            ui = data.get("ui-web") or {}
+            if not isinstance(ui, dict):
+                ui = {}
+            kind = str(ui.get("kind") or "app")
+            label = str(ui.get("label") or mid)
+            raw_tags = data.get("tags")
+            tags: list[str] = []
+            if isinstance(raw_tags, list):
+                tags = [str(t).strip() for t in raw_tags if str(t).strip()]
+            # 派生标签：便于筛选
+            derived = [kind, str(data.get("risk_default") or "").strip(), pkg]
+            for t in derived:
+                if t and t not in tags:
+                    tags.append(t)
+            items.append(
+                {
+                    "id": mid,
+                    "label": label,
+                    "kind": kind,
+                    "version": str(data.get("version") or ""),
+                    "summary": data.get("summary") or "",
+                    "tags": tags,
+                    "risk_default": data.get("risk_default") or "",
+                    "ability": [str(x) for x in (data.get("ability") or []) if str(x).strip()],
+                    "depends": list(data.get("depends") or []),
+                    "tools": (data.get("exports") or {}).get("tools") or [],
+                    "skills": (data.get("exports") or {}).get("skills") or [],
+                    "i18n": normalize_manifest_i18n(data.get("i18n")),
+                    "path": str(path.parent),
+                    "pkg": pkg,
+                }
+            )
     return items
 
 

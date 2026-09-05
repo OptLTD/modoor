@@ -15,8 +15,8 @@ MODULES=()
 
 default_modules() {
   local m
-  for m in base doc wiki sale skill; do
-    if [[ -d "${ROOT}/modules/${m}/webui" ]]; then
+  for m in base doc wiki sale skill fleet transport; do
+    if [[ -d "${ROOT}/modules/${m}/webui" || -d "${ROOT}/platform/${m}/webui" ]]; then
       echo "${m}"
     fi
   done
@@ -52,7 +52,7 @@ if [[ ${#MODULES[@]} -eq 0 ]]; then
 fi
 
 if [[ ${#MODULES[@]} -eq 0 ]]; then
-  echo "!! no module webui found under modules/*/webui" >&2
+  echo "!! no module webui found under platform/*/webui or modules/*/webui" >&2
   exit 1
 fi
 
@@ -63,8 +63,11 @@ fi
 
 for name in "${MODULES[@]}"; do
   dist="${ROOT}/modules/${name}/webui/dist"
+  if [[ ! -d "${dist}" ]]; then
+    dist="${ROOT}/platform/${name}/webui/dist"
+  fi
   if [[ ! -d "${dist}" || ! -f "${dist}/index.html" ]]; then
-    echo "!! missing dist for ${name}: ${dist}" >&2
+    echo "!! missing dist for ${name}: modules|platform/${name}/webui/dist" >&2
     echo "   run: make build ${name}" >&2
     echo "   or:  make preview BUILD=1 ${name}" >&2
     exit 1
@@ -88,7 +91,11 @@ echo "API / login  ${MODOOR_WEBUI_URL}/login"
 echo "mode         preview (API mounts dist, no vite)"
 for mid in "${MODULES[@]:-}"; do
   [[ -z "${mid}" ]] && continue
-  printf "  /web/%-6s → modules/%s/webui/dist\n" "${mid}" "${mid}"
+  if [[ -d "${ROOT}/platform/${mid}/webui/dist" ]]; then
+    printf "  /web/%-6s → platform/%s/webui/dist\n" "${mid}" "${mid}"
+  else
+    printf "  /web/%-6s → modules/%s/webui/dist\n" "${mid}" "${mid}"
+  fi
 done
 echo "static       ${MODOOR_WEBUI_STATIC_MODULES}"
 echo ""

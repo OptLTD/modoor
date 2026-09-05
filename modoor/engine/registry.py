@@ -1,4 +1,4 @@
-"""Load model bundles: modules/<id>/models/<name>/{config,tables,inputs}.json."""
+"""Load model bundles: platform|modules/<id>/models/<name>/{config,tables,inputs}.json."""
 
 from __future__ import annotations
 
@@ -45,35 +45,37 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 def discover_bundles(settings: Settings | None = None) -> dict[str, ModelBundle]:
     settings = settings or get_settings()
-    root = Path(settings.modoor_modules_root)
+    from modoor.platform.roots import module_pkg_roots
+
     out: dict[str, ModelBundle] = {}
-    if not root.is_dir():
-        return out
-    for module_dir in sorted(root.iterdir()):
-        if not module_dir.is_dir():
+    for _pkg, root in module_pkg_roots(settings):
+        if not root.is_dir():
             continue
-        models_dir = module_dir / "models"
-        if not models_dir.is_dir():
-            continue
-        for model_dir in sorted(models_dir.iterdir()):
-            if not model_dir.is_dir():
+        for module_dir in sorted(root.iterdir()):
+            if not module_dir.is_dir():
                 continue
-            config_path = model_dir / "config.json"
-            if not config_path.is_file():
+            models_dir = module_dir / "models"
+            if not models_dir.is_dir():
                 continue
-            config = _read_json(config_path)
-            model_meta = config.get("model") or {}
-            uukey = str(model_meta.get("uukey") or "").strip()
-            if not uukey:
-                continue
-            out[uukey] = ModelBundle(
-                uukey=uukey,
-                module_id=module_dir.name,
-                path=model_dir,
-                config=config,
-                tables=_read_json(model_dir / "tables.json"),
-                inputs=_read_json(model_dir / "inputs.json"),
-            )
+            for model_dir in sorted(models_dir.iterdir()):
+                if not model_dir.is_dir():
+                    continue
+                config_path = model_dir / "config.json"
+                if not config_path.is_file():
+                    continue
+                config = _read_json(config_path)
+                model_meta = config.get("model") or {}
+                uukey = str(model_meta.get("uukey") or "").strip()
+                if not uukey:
+                    continue
+                out[uukey] = ModelBundle(
+                    uukey=uukey,
+                    module_id=module_dir.name,
+                    path=model_dir,
+                    config=config,
+                    tables=_read_json(model_dir / "tables.json"),
+                    inputs=_read_json(model_dir / "inputs.json"),
+                )
     return out
 
 

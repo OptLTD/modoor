@@ -379,7 +379,7 @@ class SystemUserAdapter(ModelAdapter):
         return {k: raw.get(k) for k in field_keys if k in raw}
 
     def _apply_terms(self, stmt: Any, terms: list[QueryTerm]) -> Any:
-        from modules.base.domain import SystemLogin, SystemUser
+        from platform.base.domain import SystemLogin, SystemUser
 
         for term in terms:
             op = term.op
@@ -439,7 +439,7 @@ class SystemUserAdapter(ModelAdapter):
         size: int,
         field_keys: list[str],
     ) -> tuple[list[dict[str, Any]], int, dict[str, Any] | None]:
-        from modules.base.domain import SystemLogin, SystemUser
+        from platform.base.domain import SystemLogin, SystemUser
 
         page = max(int(page or 1), 1)
         size = min(max(int(size or 50), 1), 500)
@@ -471,12 +471,12 @@ class SystemUserAdapter(ModelAdapter):
         return values, int(count), None
 
     def refers(self, session: Session, ctx: Ctx) -> dict[str, Any]:
-        from modules.base import domain as base_domain
+        from platform.base import domain as base_domain
 
         return {"basic.team_id": base_domain.list_team_options(session, ctx)}
 
     def _get_entity(self, session: Session, ctx: Ctx, uukey: str):
-        from modules.base.domain import SystemUser
+        from platform.base.domain import SystemUser
 
         stmt = (
             select(SystemUser)
@@ -500,7 +500,7 @@ class SystemUserAdapter(ModelAdapter):
         ctx: Ctx,
         batch: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
-        from modules.base import domain as base_domain
+        from platform.base import domain as base_domain
 
         records: list[dict[str, Any]] = []
         for raw in batch:
@@ -597,7 +597,7 @@ class SystemUserAdapter(ModelAdapter):
         return records
 
     def delete_keys(self, session: Session, ctx: Ctx, keys: list[str]) -> None:
-        from modules.base import domain as base_domain
+        from platform.base import domain as base_domain
 
         for key in keys:
             entity = self._get_entity(session, ctx, str(key).strip())

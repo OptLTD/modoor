@@ -14,8 +14,8 @@ export default defineConfig({
   plugins: [vue()],
   resolve: {
     alias: {
-      '@modoor/hooks': path.resolve(repo, 'packages/hooks/src'),
-      '@modoor/widget': path.resolve(repo, 'packages/widget/src'),
+      '@modoor/hooks': path.resolve(repo, 'shared/hooks/src'),
+      '@modoor/widget': path.resolve(repo, 'shared/widget/src'),
       vue: path.resolve(root, 'node_modules/vue'),
       'vue-router': path.resolve(root, 'node_modules/vue-router'),
       'jspreadsheet-ce': path.resolve(root, 'node_modules/jspreadsheet-ce'),

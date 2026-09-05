@@ -1,0 +1,41 @@
+id: transport
+version: 0.1.0
+depends: []
+summary: Transport / TMS — shipments (table prefix tms_)
+tags: [business, transport, tms]
+
+ui-web:
+  kind: app
+  label: Transport
+  base: /transport
+  entry: /transport
+
+exports:
+  tools:
+    - transport.list_shipments
+    - transport.add_shipment
+  skills:
+    - transport.manage_shipments
+  menus:
+    - id: transport.shipments
+      label: Shipments
+      path: /transport
+      sequence: 10
+
+ability:
+  - transport.shipment.read
+  - transport.shipment.write
+
+risk_default: low
+
+i18n:
+  zh-CN:
+    app.label: 运输
+    transport.shipments: 运单
+    transport.shipment.read: 读取运单
+    transport.shipment.write: 管理运单
+  en-US:
+    app.label: Transport
+    transport.shipments: Shipments
+    transport.shipment.read: Read shipments
+    transport.shipment.write: Manage shipments
